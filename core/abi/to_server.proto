@@ -28,9 +28,8 @@ message ReqConfig {
 }
 message PeerEnter {
     string ip = 1;
-
-    /// 短的地址
-    string endpoint = 2;
+    /// udp://ip:port
+    string endpoint_addr = 2;
     /// udp 端口
     uint32 port = 3;
 }

@@ -108,19 +108,19 @@ impl NativeTun {
 
 #[async_trait]
 impl Tun for NativeTun {
-    // fn enabled(&self, value: bool) -> io::Result<()> {
-    //     let mut req = sys::ifreq::new(self.name.as_ref());
-    //     unsafe {
-    //         sys::ioctl_get_flag(self.fd.as_raw_fd(), &mut req)?;
-    //         if value {
-    //             req.ifru.flags |= (IFF_UP | IFF_RUNNING) as c_short;
-    //         } else {
-    //             req.ifru.flags &= !(IFF_UP as c_short);
-    //         }
-    //         sys::ioctl_set_flag(self.fd.as_raw_fd(), &req)?;
-    //         Ok(())
-    //     }
-    // }
+    fn enabled(&self, value: bool) -> io::Result<()> {
+        let mut req = sys::ifreq::new(self.name.as_ref());
+        unsafe {
+            sys::ioctl_get_flag(self.fd.as_raw_fd(), &mut req)?;
+            if value {
+                req.ifru.flags |= (IFF_UP | IFF_RUNNING) as c_short;
+            } else {
+                req.ifru.flags &= !(IFF_UP as c_short);
+            }
+            sys::ioctl_set_flag(self.fd.as_raw_fd(), &req)?;
+            Ok(())
+        }
+    }
 
     fn name(&self) -> &str {
         &self.name

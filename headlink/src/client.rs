@@ -149,6 +149,17 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
     while let Ok(data) = recv.recv().await {
         info!("处理数据:{:?}",data);
         let id = data.id;
+        let mut peers = vec![];
+        server.peers.iter().for_each(|r| {
+            peers.push(BcPeerEnter {
+                pub_key: r.key().clone(),
+                ip: r.addr.to_string(),
+                endpoint_addr: r.endpoint_addr.to_string(),
+                port: r.port,
+                last_con_type: None,
+            });
+        });
+
         if let Some(data) = data.to_server_data {
             match data {
                 ToServerData::ReqConfig(_) => {
@@ -161,8 +172,9 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
                             network: Ipv4Addr::new(192, 168, 10, 0).into(),
                             port: 0,
                             ipv6_addr: None,
+                            peers,
                         })).await?;
-                    } else if "Xf9Vhry6VISp9KLGpP3s+bzGkIymIScSCSZskmVIzX8=" == pubkey {
+                    } else if "vlHnufyqhsl4IhcnunAmRHUzdTI5Gn+5KgNWOtApkFs=" == pubkey {
                         client.send(Some(id), ToClientData::RespConfig(RespConfig {
                             network_id: "test".to_string(),
                             address: Ipv4Addr::new(192, 168, 10, 3).into(),
@@ -170,13 +182,17 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
                             network: Ipv4Addr::new(192, 168, 10, 0).into(),
                             port: 0,
                             ipv6_addr: None,
+                            peers,
                         })).await?;
                     }
                 }
                 ToServerData::PeerEnter(e) => {
                     //查询信息->peer
                     server.peers.insert(pubkey.clone(), VlinkPeer {
-                        connect: client.clone()
+                        connect: client.clone(),
+                        endpoint_addr: e.endpoint_addr.parse().unwrap(),
+                        addr: e.ip.parse().unwrap(),
+                        port: e.port,
                     });
                     //广播
                     let mut task = vec![];
@@ -187,14 +203,16 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
                             return;
                         };
                         //todo network_id
-                        let conn = client.clone();
-                        let pubkey_cc=pubkey_c.clone();
-                        let ec= e.clone();
+                        let conn = k.connect.clone();
+                        let pubkey_cc = pubkey_c.clone();
+                        let ec = e.clone();
                         task.push(async move {
                             conn.send(None, ToClientData::PeerEnter(BcPeerEnter {
                                 pub_key: pubkey_cc.clone(),
                                 ip: ec.ip,
+                                endpoint_addr: ec.endpoint_addr.clone(),
                                 port: ec.port,
+                                last_con_type: Some(0),
                             })).await?;
                             Ok::<(), anyhow::Error>(())
                         });
@@ -213,6 +231,8 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
                 }
                 _ => {}
             }
+        } else {
+            error!("数据错误:pub:{}",pubkey);
         }
     };
     Ok(())

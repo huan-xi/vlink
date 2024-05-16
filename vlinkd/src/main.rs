@@ -1,7 +1,8 @@
 mod test_route;
 
 
-
+use std::collections::HashSet;
+use std::net::{SocketAddr, SocketAddrV4};
 use std::time::Duration;
 use anyhow::anyhow;
 use futures::Stream;
@@ -17,7 +18,8 @@ use x25519_dalek::StaticSecret;
 use core::proto::pb::abi::*;
 
 use core::proto::pb::abi::to_client::*;
-use vlink_tun::DeviceConfig;
+use vlink_tun::{DeviceConfig, PeerConfig};
+use vlink_tun::device::peer::cidr::Cidr;
 use vlinkd::client::VlinkClient;
 use vlinkd::network::config::VlinkNetworkConfig;
 use vlinkd::network::{NetworkCtrl, VlinkNetworkManager};
@@ -58,7 +60,7 @@ pub async fn main() -> anyhow::Result<()> {
         path: args.config_dir.take(),
     }.load_config().await?;
 
-    info!("stats:{:?}",state);
+    info!("state:{:?}",state);
 
     let addr = args.server.as_str();
 
@@ -81,22 +83,38 @@ pub async fn main() -> anyhow::Result<()> {
     } else {
         return Err(anyhow!("响应错误"));
     };
+
+    let mut device_config = DeviceConfig {
+        private_key: state.secret.private_key.to_bytes(),
+        fwmark: 0,
+        port: resp_config.port as u16,
+        peers: Default::default(),
+        address: resp_config.address.into(),
+        network: resp_config.network.into(),
+        netmask: resp_config.mask as u8,
+    };
+    for p in resp_config.peers.iter() {
+        let pk = core::base64::decode_base64(p.pub_key.as_str())?;
+        let mut allowed_ips = HashSet::new();
+        allowed_ips.insert(Cidr::new(p.ip.parse().unwrap(), 32));
+        device_config = device_config.peer(PeerConfig {
+            public_key: pk.try_into().unwrap(),
+            allowed_ips,
+            endpoint: Some(SocketAddr::V4(SocketAddrV4::new(p.endpoint_addr.parse().unwrap(), p.port as u16))),
+            preshared_key: None,
+            lazy: false,
+            no_encrypt: false,
+            persistent_keepalive: None,
+        });
+    }
+
     let cfg = VlinkNetworkConfig {
         tun_name: None,
-        device_config: DeviceConfig {
-            private_key: state.secret.private_key.to_bytes(),
-            fwmark: 0,
-            port: resp_config.port as u16,
-            peers: Default::default(),
-            address: resp_config.address.into(),
-            network: resp_config.network.into(),
-            netmask: resp_config.mask as u8,
-        },
+        device_config,
     };
 
     let network = VlinkNetworkManager::new(client, cfg);
     network.start(rx).await?;
-
 
 
     error!("服务器断开");

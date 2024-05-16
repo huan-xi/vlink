@@ -1,5 +1,5 @@
 [workspace]
-members = [ "examples/wireguard-to-wiretun/tester",
+members = [
     "headlink", "core",
     "derp/vlink-derp-server",
     "derp/frp-client",

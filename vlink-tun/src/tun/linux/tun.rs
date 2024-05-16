@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
-use libc::{__c_anonymous_ifr_ifru, IFF_NO_PI, IFF_TUN, IFF_VNET_HDR};
+use libc::{__c_anonymous_ifr_ifru, c_short, IFF_NO_PI, IFF_RUNNING, IFF_TUN, IFF_UP, IFF_VNET_HDR};
 use nix::fcntl::{self, OFlag};
 use nix::sys::stat::Mode;
 use tokio::io::unix::AsyncFd;
@@ -53,13 +53,27 @@ impl NativeTun {
             name: name.to_owned(),
         })
     }
+
+
 }
 
 #[async_trait]
 impl Tun for NativeTun {
-    // fn enabled(&self, value: bool) -> io::Result<()> {
-    //     todo!()
-    // }
+    fn enabled(&self, value: bool) -> io::Result<()> {
+        unsafe {
+            let mut req = self.request();
+
+            sys::siocgifflags(self.ctl.as_raw_fd(), &mut req)?;
+            if value {
+                req.ifr_ifru.ifru_flags |= (IFF_UP | IFF_RUNNING) as c_short;
+            } else {
+                req.ifr_ifru.ifru_flags &= !(IFF_UP as c_short);
+            }
+            sys::siocsifflags(self.ctl.as_raw_fd(), &req)?;
+
+            Ok(())
+        }
+    }
 
     fn name(&self) -> &str {
         &self.name

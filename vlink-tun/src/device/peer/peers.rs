@@ -13,7 +13,6 @@ use crate::device::peer::session::{Session, SessionIndex};
 use crate::{NativeTun, PeerStaticSecret};
 
 struct PeerEntry {
-
     peer: Arc<Peer>,
     allowed_ips: HashSet<Cidr>,
     #[allow(unused)]

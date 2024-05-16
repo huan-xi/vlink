@@ -33,9 +33,17 @@ message RespConfig {
     optional string ipv6_addr = 6;
     repeated BcPeerEnter peers = 10;
 }
+enum ConType {
+    CON_TYPE_UDP = 0;
+}
+
 message BcPeerEnter {
     string pub_key = 1;
+    /// 网络中的ip
     string ip = 2;
+    string endpoint_addr = 4;
     /// udp 端口
-    uint32 port = 3;
+    uint32 port = 5;
+    /// 上次连接类型
+    optional ConType last_con_type = 6;
 }

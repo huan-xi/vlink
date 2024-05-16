@@ -77,6 +77,7 @@ impl Device {
     /// 启动一个udp 端口
     pub async fn new(name: Option<String>, cfg: DeviceConfig) -> Result<Self, Error> {
         let tun = crate::NativeTun::new(name).map_err(Error::Tun)?;
+        tun.enabled(true)?;
         //设置ip,network
         debug!("set ip :{};{}",cfg.address,cfg.netmask);
         let mask = Ipv4Addr::from(helpers::bite_mask(cfg.netmask));

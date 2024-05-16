@@ -1,5 +1,4 @@
 ///客户端->服务端
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ToServer {
     #[prost(uint64, tag="1")]
@@ -9,7 +8,6 @@ pub struct ToServer {
 }
 /// Nested message and enum types in `ToServer`.
 pub mod to_server {
-    #[derive(PartialOrd)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum ToServerData {
         #[prost(message, tag="2")]
@@ -29,7 +27,6 @@ pub mod to_server {
         PeerReport(super::PeerReport),
     }
 }
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReqHandshake {
     #[prost(uint32, tag="1")]
@@ -38,40 +35,33 @@ pub struct ReqHandshake {
     #[prost(string, tag="2")]
     pub pub_key: ::prost::alloc::string::String,
 }
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReqConfig {
 }
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PeerEnter {
     #[prost(string, tag="1")]
     pub ip: ::prost::alloc::string::String,
-    //// 短的地址
+    //// udp://ip:port
     #[prost(string, tag="2")]
-    pub endpoint: ::prost::alloc::string::String,
+    pub endpoint_addr: ::prost::alloc::string::String,
     //// udp 端口
     #[prost(uint32, tag="3")]
     pub port: u32,
 }
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PeerLeave {
 }
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PeerMessage {
 }
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PeerChange {
 }
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PeerReport {
 }
 ///客户端->服务端
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ToClient {
     /// 通信id
@@ -82,7 +72,6 @@ pub struct ToClient {
 }
 /// Nested message and enum types in `ToClient`.
 pub mod to_client {
-    #[derive(PartialOrd)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum ToClientData {
         #[prost(message, tag="2")]
@@ -94,7 +83,6 @@ pub mod to_client {
     }
 }
 //// 握手响应
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RespHandshake {
     #[prost(bool, tag="1")]
@@ -103,7 +91,6 @@ pub struct RespHandshake {
     pub msg: ::core::option::Option<::prost::alloc::string::String>,
 }
 //// 配置响应
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RespConfig {
     #[prost(string, tag="1")]
@@ -124,14 +111,24 @@ pub struct RespConfig {
     #[prost(message, repeated, tag="10")]
     pub peers: ::prost::alloc::vec::Vec<BcPeerEnter>,
 }
-#[derive(PartialOrd)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BcPeerEnter {
     #[prost(string, tag="1")]
     pub pub_key: ::prost::alloc::string::String,
+    //// 网络中的ip
     #[prost(string, tag="2")]
     pub ip: ::prost::alloc::string::String,
+    #[prost(string, tag="4")]
+    pub endpoint_addr: ::prost::alloc::string::String,
     //// udp 端口
-    #[prost(uint32, tag="3")]
+    #[prost(uint32, tag="5")]
     pub port: u32,
+    //// 上次连接类型
+    #[prost(enumeration="ConType", optional, tag="6")]
+    pub last_con_type: ::core::option::Option<i32>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ConType {
+    Udp = 0,
 }

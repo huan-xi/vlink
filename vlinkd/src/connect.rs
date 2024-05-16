@@ -5,15 +5,16 @@ use std::time::Duration;
 use anyhow::anyhow;
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use prost::Message;
+
 use tokio::net::TcpStream;
 use core::proto::bind_transport;
 use core::proto::pb::abi::to_server::ToServerData;
 use core::proto::pb::abi::ToServer;
 use core::proto::pb::abi::ToClient;
 use core::proto::pb::abi::to_client::ToClientData;
-
 use tokio::sync::{broadcast, mpsc, oneshot};
 use bytes::{Bytes, BytesMut};
+use log::{error, info};
 use tokio::select;
 use tokio::time::timeout;
 
@@ -31,9 +32,9 @@ pub struct ClientConnect {
 pub struct ClientRequest {}
 
 impl ClientConnect {
-    pub fn new(stream: TcpStream) -> (ClientConnect, impl Future<Output=anyhow::Result<()>> + Sized) {
+    pub fn new(stream: TcpStream, tx: broadcast::Sender<ToClient>) -> (ClientConnect, impl Future<Output=anyhow::Result<()>> + Sized) {
         let (mut sink, mut stream) = bind_transport(stream).split();
-        let (tx, _) = broadcast::channel::<ToClient>(10);
+
         let (to_server_tx, mut to_server_rx) = mpsc::channel::<ToServerParam>(10);
         let is_connected = Arc::new(AtomicBool::new(true));
         let is_connected_c = is_connected.clone();
@@ -50,7 +51,8 @@ impl ClientConnect {
                 };
                 let mut bytes = BytesMut::new();
                 req.encode(&mut bytes)?;
-                let result = sink.send(Bytes::from(bytes)).await
+                let result = sink.send(Bytes::from(bytes))
+                    .await
                     .map(|_| id);
                 let _ = tx.send(result);
             }
@@ -72,7 +74,10 @@ impl ClientConnect {
             loop {
                 select! {
                     _ = recv_handler => {break;}
-                    _ = to_server_handler => {break;}
+                    e = to_server_handler => {
+                        error!("to_server_handler {:?}", e);
+                        break;
+                    }
                 }
             }
             is_connected_c.store(false, Ordering::SeqCst);
@@ -108,17 +113,20 @@ impl ClientConnect {
         }).await.map_err(|_| anyhow!("调用超时"))?
     }
 
-    /// 接受指令
-    pub  fn receiver(&self) -> broadcast::Receiver<ToClient> {
-        self.stream.subscribe()
-    }
+
     pub async fn send(&self, id: Option<u64>, data: ToServerData) -> anyhow::Result<u64> {
-        let (otx, orx) = oneshot::channel();
-        self.to_server_tx.send((id, data, otx)).await?;
-        let id = orx.await??;
-        Ok(id)
+        if !self.is_connected.load(Ordering::SeqCst) {
+            return Err(anyhow::anyhow!("客户端已断开连接"));
+        }
+        timeout(self.timeout, async {
+            let (otx, orx) = oneshot::channel();
+            self.to_server_tx.send((id, data, otx)).await?;
+            let id = orx.await??;
+            Ok(id)
+        }).await.map_err(|_| anyhow!("调用超时"))?
     }
 }
+
 
 #[cfg(test)]
 mod test {

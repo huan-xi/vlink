@@ -86,7 +86,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     let tun_name = config.tun_name.as_str();
-    let device = Device::new(tun_name, cfg).await?;
+    let device = Device::new(Some(tun_name.to_string()), cfg).await?;
+
     //设置ip,路由
     // let address = config.address;
 

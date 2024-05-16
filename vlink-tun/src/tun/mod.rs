@@ -23,7 +23,7 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait Tun: Send + Sync + Clone {
-    // fn enabled(&self, value: bool) -> io::Result<()>;
+    fn enabled(&self, value: bool) -> io::Result<()>;
 
     fn name(&self) -> &str;
     fn mtu(&self) -> Result<u16, Error>;
