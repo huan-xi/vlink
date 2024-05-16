@@ -2,27 +2,33 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
 use anyhow::anyhow;
-use futures_util::StreamExt;
-use log::{debug, error, info};
+use futures_util::{StreamExt, TryFutureExt};
+use log::{error, info};
 use tokio::net::TcpStream;
 use tokio::select;
-use tokio::sync::RwLock;
+use tokio::sync::{broadcast, RwLock};
+use tokio::sync::broadcast::Sender;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 use crate::connect::ClientConnect;
 use core::proto::pb::abi::ReqHandshake;
 use core::proto::pb::abi::to_server::ToServerData;
 use core::proto::pb::abi::to_client::ToClientData;
 use crate::network::{NetworkCtrl, NetworkCtrlCmd};
+use core::proto::pb::abi::ToClient;
 
 pub struct VlinkClient {
     conn: Arc<RwLock<ClientConnect>>,
+    tx: broadcast::Sender<ToClient>,
 }
 
 impl VlinkClient {
     pub async fn spawn(addr: &str, pub_key: &str, ctrl: NetworkCtrl) -> anyhow::Result<Self> {
         //开启连接
         let stream = TcpStream::connect(addr).await?;
-        let (conn, even_loop) = ClientConnect::new(stream);
+        let (tx, _) = broadcast::channel::<ToClient>(10);
+
+        let (conn, even_loop) = ClientConnect::new(stream, tx.clone());
         let token = CancellationToken::new();
         let lock_conn = Arc::new(RwLock::new(conn));
         let lock_conn_c = lock_conn.clone();
@@ -44,6 +50,7 @@ impl VlinkClient {
 
         //重连
         let ctrl_c = ctrl.clone();
+        let txc = tx.clone();
         let reconnect = async move {
             while let Ok(_) = etx.send(None).await {
                 let _ = etx.send(None).await;
@@ -55,7 +62,7 @@ impl VlinkClient {
                         continue;
                     }
                 };
-                let (conn, new_loop) = ClientConnect::new(stream);
+                let (conn, new_loop) = ClientConnect::new(stream, txc.clone());
                 // even_loop = Some(new_loop);
                 info!("重新连接成功");
                 etx.send(Some(new_loop)).await.unwrap();
@@ -65,15 +72,18 @@ impl VlinkClient {
                     break;
                 };
                 info!("重连握手成功");
-                *lock_conn_c.write().await = conn;
+                {
+                    *lock_conn_c.write().await = conn;
+                }
                 ctrl_c.send(NetworkCtrlCmd::Reenter).await?;
             };
             Ok::<(), anyhow::Error>(())
         };
         let lock_conn_c = lock_conn.clone();
         let ctrl_c = ctrl.clone();
+        let txc = tx.clone();
         let process = async move {
-            process_cmd(lock_conn_c, ctrl_c).await
+            process_cmd(lock_conn_c, ctrl_c,txc).await
         };
 
         tokio::spawn(async move {
@@ -91,7 +101,7 @@ impl VlinkClient {
 
 
         Ok(
-            Self { conn: lock_conn }
+            Self { conn: lock_conn ,tx }
         )
     }
 
@@ -100,15 +110,14 @@ impl VlinkClient {
         conn.request(data).await
     }
     pub async fn send(&self, data: ToServerData) -> anyhow::Result<u64> {
-        debug!("send to server:{:?}",data);
         let conn = self.conn.read().await;
         conn.send(None, data).await
     }
 }
 
-async fn process_cmd(conn: Arc<RwLock<ClientConnect>>, ctrl: NetworkCtrl) {
+async fn process_cmd(conn: Arc<RwLock<ClientConnect>>, ctrl: NetworkCtrl, txc: Sender<ToClient>) {
     loop {
-        let mut recv = conn.read().await.receiver();
+        let mut recv = txc.subscribe();
         loop {
             let data = recv.recv().await;
             if let Ok(data) = data {
