@@ -1,18 +1,16 @@
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 use base64::Engine;
-use log::info;
+use log::{error, info};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Receiver;
 use core::proto::pb::abi::to_server::ToServerData;
 use core::proto::pb::abi::PeerEnter;
-use vlink_tun::device::config::DeviceConfig;
 use vlink_tun::device::Device;
 use vlink_tun::{LocalStaticSecret, PeerConfig, Tun};
 use crate::client::VlinkClient;
 use crate::network::config::VlinkNetworkConfig;
 use core::proto::pb::abi::*;
-use vlink_tun::noise::crypto::PublicKey;
 
 pub mod config;
 
@@ -105,11 +103,12 @@ impl VlinkNetworkManagerInner {
                     // device.add_peer();
                 }
                 NetworkCtrlCmd::Reenter => {
-                    self.client.send(ToServerData::PeerEnter(PeerEnter {
+                    let a = self.client.send(ToServerData::PeerEnter(PeerEnter {
                         ip: device.tun_addr.to_string(),
                         endpoint: "".to_string(),
                         port: device.port as u32,
-                    })).await?;
+                    })).await;
+                    info!("重新加入网络:{:?}",a);
                 }
             }
         }
