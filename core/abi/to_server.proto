@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package abi;
+
+
+//客户端->服务端
+message ToServer {
+    uint64 id = 1;
+    oneof to_server_data {
+        ReqHandshake handshake = 2;
+        ReqConfig req_config = 3;
+        PeerEnter peer_enter = 10;
+        PeerLeave peer_leave = 11;
+        PeerChange peer_change = 12;
+        PeerMessage peer_message = 13;
+        // 上报信息
+        PeerReport peer_report = 14;
+    }
+}
+
+message ReqHandshake {
+    uint32 version = 1;
+    //访问token,用于身份校验
+    string pub_key = 2;
+}
+message ReqConfig {
+
+}
+message PeerEnter {
+    string ip = 1;
+
+    /// 短的地址
+    string endpoint = 2;
+    /// udp 端口
+    uint32 port = 3;
+}
+message PeerLeave {}
+message PeerMessage {}
+message PeerChange {}
+message PeerReport {}

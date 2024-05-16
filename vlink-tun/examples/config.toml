@@ -1,0 +1,7 @@
+peer_public_key = "ANYIYq6B0dmWOV2QI5YdLb2nvbBbflFfEVSCm8w6xi4="
+private_key = "6JMHfK0LEDgnEvWnq8LMxU9VvLmr7qFqbRdaUfOVLm0="
+public_key = "TaB1O+zM1c676zdpc8bu5IkUM82yKjjtvV3q49vGmFA="
+peer_endpoint = "192.168.3.115:5522"
+tun_name = "utun11"
+network = "172.16.0.0"
+allowed_ips = "172.16.0.3/32"

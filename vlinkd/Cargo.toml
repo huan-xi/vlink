@@ -1,0 +1,33 @@
+[package]
+name = "vlinkd"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+core = { path = "../core" }
+vlink-tun = { path = "../vlink-tun" }
+tokio = { workspace = true }
+tokio-util = { version = "0.6", features = ["full"] }
+log4rs = { workspace = true }
+log = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+x25519-dalek = { workspace = true }
+rand_core = "0.6"
+futures = "0"
+futures-util="0"
+async-bincode = "0.7.1"
+anyhow = "1.0.40"
+winroute = "0.2.0"
+dashmap.workspace = true
+async-trait = "0.1.73"
+flate2 = "1"
+thiserror = "1.0.48"
+prost = "0.8"
+bytes = "1.6.0"
+directories = "5.0.1"
+hex = "0.4.3"
+base64 = "0.22.1"

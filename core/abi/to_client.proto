@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package abi;
+
+
+//客户端->服务端
+message ToClient {
+    // 通信id
+    uint64 id = 1;
+    oneof to_client_data {
+        RespHandshake resp_handshake = 2;
+        RespConfig resp_config = 3;
+        BcPeerEnter peer_enter = 4;
+    }
+}
+
+/// 握手响应
+message RespHandshake {
+    bool success = 1;
+    optional string msg = 4;
+}
+/// 配置响应
+message RespConfig {
+    string network_id = 1;
+    // 分配的网络地址
+    uint32 address = 2;
+    // 子网掩码
+    uint32 mask = 3;
+    uint32 network = 4;
+    //udp 端口
+    uint32 port = 5;
+
+    optional string ipv6_addr = 6;
+    repeated BcPeerEnter peers = 10;
+}
+message BcPeerEnter {
+    string pub_key = 1;
+    string ip = 2;
+    /// udp 端口
+    uint32 port = 3;
+}

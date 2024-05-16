@@ -1,0 +1,34 @@
+[package]
+name = "frp-client"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { workspace = true }
+
+log = { workspace = true }
+thiserror = { workspace = true }
+tokio-util = { version = "0.7", features = ["codec","compat"] }
+futures-util = { version = "0", features = ["sink"] }
+bytes = "1"
+tracing = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+#yamux = "0.10.1"
+yamux = "0.13.1"
+ring = "0.16.20"
+aes = "0.8.1"
+cfb-mode = "0.8.2"
+rust-ini = "0.18.0"
+futures = { version = "0.3.12", default-features = false, features = ["std"] }
+clap = { version = "3.2.14", features = ["derive"] }
+md5 = "0.7.0"
+chrono = "0.4.19"
+hex = "0.4.3"
+
+[dev-dependencies]
+env_logger = "0"
+anyhow = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

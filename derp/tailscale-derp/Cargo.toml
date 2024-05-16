@@ -1,0 +1,53 @@
+[package]
+name = "tailscale-derp"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+tokio-util = { version = "0.7", features = ["codec"] }
+futures-util = { version = "0", features = ["sink"] }
+bytes = "1"
+tracing = "0.1"
+num_enum = "0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+crypto_box = "0.9.1"
+base64 = "0.13"
+
+
+native-tls = { version = "0.2", optional = true }
+rand = "0.8"
+rustls = { version = "0.19", optional = true }
+rustls-native-certs = { version = "0.5", optional = true }
+tokio-native-tls = { version = "0.3", optional = true }
+tokio-rustls = { version = "0.22", optional = true }
+
+url = "2"
+webpki = { version = "0.21", optional = true }
+webpki-roots = { version = "0.21", optional = true }
+#websocket-codec = "0"
+#websocket-lite = "0"
+byteorder = "1"
+httparse = "1"
+sha1 = "0.6"
+
+
+[dev-dependencies]
+env_logger = "0"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+quickcheck_macros = "1"
+
+[features]
+default = ["ssl-native-tls"]
+nightly = []
+__ssl = []
+ssl-native-tls = ["__ssl", "native-tls", "tokio-native-tls"]
+__ssl-rustls = ["__ssl", "rustls", "tokio-rustls", "webpki"]
+ssl-rustls-webpki-roots = ["__ssl-rustls", "webpki-roots"]
+ssl-rustls-native-roots = ["__ssl-rustls", "rustls-native-certs"]
