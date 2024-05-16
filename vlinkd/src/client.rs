@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use anyhow::anyhow;
 use futures_util::StreamExt;
-use log::{error, info};
+use log::{debug, error, info};
 use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::RwLock;
@@ -73,7 +73,7 @@ impl VlinkClient {
         let lock_conn_c = lock_conn.clone();
         let ctrl_c = ctrl.clone();
         let process = async move {
-            process_cmd(lock_conn_c,ctrl_c).await
+            process_cmd(lock_conn_c, ctrl_c).await
         };
 
         tokio::spawn(async move {
@@ -100,6 +100,7 @@ impl VlinkClient {
         conn.request(data).await
     }
     pub async fn send(&self, data: ToServerData) -> anyhow::Result<u64> {
+        debug!("send to server:{:?}",data);
         let conn = self.conn.read().await;
         conn.send(None, data).await
     }
@@ -113,12 +114,10 @@ async fn process_cmd(conn: Arc<RwLock<ClientConnect>>, ctrl: NetworkCtrl) {
             if let Ok(data) = data {
                 info!("处理数据:{:?}", data);
                 match data.to_client_data {
-                    Some(ToClientData::PeerEnter(e))=>{
+                    Some(ToClientData::PeerEnter(e)) => {
                         ctrl.send(NetworkCtrlCmd::PeerEnter(e)).await.unwrap();
                     }
-                    _ => {
-
-                    }
+                    _ => {}
                 }
             };
         }

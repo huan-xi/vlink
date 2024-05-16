@@ -6,8 +6,9 @@ use vlink_tun::tun::IFace;
 
 #[tokio::main]
 async fn main() {
-    let a = NativeTun::new(Some("utun12".to_string())).unwrap();
+    let a = NativeTun::new(Some("vlink0".to_string())).unwrap();
 
+    println!("a:{}", a.name());
     let a = a.set_ip(Ipv4Addr::new(192, 168, 10, 22), Ipv4Addr::new(255, 255, 255, 0));
     println!("{:?}", a);
     /*println!("name:{:?}", a.name());

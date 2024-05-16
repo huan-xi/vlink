@@ -43,21 +43,21 @@ mod tests1 {
     //ningbo-3689d402.of-7af93c01.shop
     #[tokio::test]
     pub async fn test() -> Result<(), Error> {
-        tracing_subscriber::registry()
+        /*tracing_subscriber::registry()
             .with(tracing_subscriber::EnvFilter::new(
                 std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into()),
                 // std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
             ))
             .with(tracing_subscriber::fmt::layer())
-            .init();
+            .init();*/
 
         // let token = "OpenFrpToken";
         // let addr = "shijiazhuang-5b072fbb.of-7af93c01.shop:8120";
         let token = "";
         let addr = "127.0.0.1:7001";
         // let addr = "ningbo-3689d402.of-7af93c01.shop:8120";
-        let mut stream = tokio::net::TcpStream::connect(addr)
-            .await.unwrap()
+        let  stream = tokio::net::TcpStream::connect(addr)
+            .await?
             .compat();
         //多路复用连接
         let conn = yamux::Connection::new(stream, yamux::Config::default(), yamux::Mode::Client);

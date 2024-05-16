@@ -161,6 +161,7 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
                             network: Ipv4Addr::new(192, 168, 10, 0).into(),
                             port: 0,
                             ipv6_addr: None,
+                            peers: vec![],
                         })).await?;
                     } else if "Xf9Vhry6VISp9KLGpP3s+bzGkIymIScSCSZskmVIzX8=" == pubkey {
                         client.send(Some(id), ToClientData::RespConfig(RespConfig {
@@ -170,6 +171,7 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
                             network: Ipv4Addr::new(192, 168, 10, 0).into(),
                             port: 0,
                             ipv6_addr: None,
+                            peers: vec![],
                         })).await?;
                     }
                 }

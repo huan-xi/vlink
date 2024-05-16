@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::env;
 use std::error::Error;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::process::Command;
 use base64::engine::general_purpose::STANDARD as base64Encoding;
 use vlink_tun::device::{Device};
@@ -66,7 +66,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let config: Config = toml::from_str(str.as_str()).unwrap();
 
     info!("Starting");
-    let cfg = DeviceConfig::default();
+    let cfg = DeviceConfig {
+        private_key: Default::default(),
+        fwmark: 0,
+        port: 0,
+        peers: Default::default(),
+        address:Ipv4Addr::new(0,0,0,0),
+        network:Ipv4Addr::new(0,0,0,0),
+        netmask: 0,
+    };
 
     let cidr = config.allowed_ips.parse::<Cidr>().unwrap();
     let allowed_ips = HashSet::from([cidr]);
@@ -86,7 +94,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     let tun_name = config.tun_name.as_str();
-    let device = Device::new(tun_name, cfg).await?;
+    // let device = Device::new(tun_name, cfg).await?;
     //设置ip,路由
     // let address = config.address;
 
