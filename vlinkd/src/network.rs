@@ -13,6 +13,7 @@ use vlink_tun::{LocalStaticSecret, PeerConfig, Tun};
 use crate::client::VlinkClient;
 use crate::network::config::VlinkNetworkConfig;
 use core::proto::pb::abi::*;
+use vlink_tun::device::config::ArgConfig;
 use vlink_tun::device::peer::cidr::Cidr;
 use crate::utils::iface::find_my_ip;
 
@@ -74,11 +75,10 @@ impl VlinkNetworkManagerInner {
     pub async fn start(&self, mut rx: Receiver<NetworkCtrlCmd>) -> anyhow::Result<()> {
         let config = self.config.write().unwrap().take().unwrap();
         //todo 检查网段冲突
-
         let device = Device::new(config.tun_name, config.device_config).await?;
         info!("启动接口:{}",device.tun.name());
         //上报设备信息
-        send_enter(&self.client, &device).await?;
+        send_enter(&self.client, &device, &config.arg_config).await?;
 
         //接受控制指令,操作device
         while let Some(cmd) = rx.recv().await {
@@ -93,11 +93,17 @@ impl VlinkNetworkManagerInner {
                     let public_key = pk.as_slice().try_into()?;
                     let cidr = Cidr::new(e.ip.as_str().parse().unwrap(), 32);
                     let allowed_ips = HashSet::from([cidr]);
-                    info!("addr:{:?}", e.endpoint_addr.as_str());
+                    info!("addr:{:?}", e.endpoint_addr);
                     device.insert_peer(PeerConfig {
                         public_key,
                         allowed_ips,
-                        endpoint: Some(SocketAddr::V4(SocketAddrV4::new(e.endpoint_addr.parse().unwrap(), e.port as u16))),
+                        endpoint: match e.endpoint_addr {
+                            None => {None}
+                            Some(addr) => {
+                                //Some(SocketAddr::V4(SocketAddrV4::new(e.endpoint_addr.parse().unwrap(), e.port as u16)))
+                                Some(SocketAddr::new(addr.parse()?, e.port as u16))
+                            }
+                        },
                         preshared_key: None,
                         lazy: false,
                         no_encrypt: false,
@@ -106,8 +112,7 @@ impl VlinkNetworkManagerInner {
                     // device.add_peer();
                 }
                 NetworkCtrlCmd::Reenter => {
-                    send_enter(&self.client, &device).await?;
-
+                    send_enter(&self.client, &device,&config.arg_config).await?;
                 }
             }
         }
@@ -119,10 +124,10 @@ impl VlinkNetworkManagerInner {
 
 /// 进入网络信息
 /// 本机ip+udp port
-pub async fn send_enter(client: &VlinkClient, device: &Device) -> anyhow::Result<()>{
+pub async fn send_enter(client: &VlinkClient, device: &Device, arg: &ArgConfig) -> anyhow::Result<()> {
     client.send(ToServerData::PeerEnter(PeerEnter {
         ip: device.tun_addr.to_string(),
-        endpoint_addr: find_my_ip().unwrap(),
+        endpoint_addr: arg.endpoint_addr.clone(),
         port: device.port as u32,
     })).await?;
     Ok(())

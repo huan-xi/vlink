@@ -31,7 +31,10 @@ pub struct DeviceConfig {
     //网络
     pub network: Ipv4Addr,
     pub netmask: u8,
-
+}
+#[derive(Debug, Clone)]
+pub struct ArgConfig {
+    pub endpoint_addr: Option<String>,
 }
 
 impl DeviceConfig {

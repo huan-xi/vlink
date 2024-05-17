@@ -28,8 +28,8 @@ message ReqConfig {
 }
 message PeerEnter {
     string ip = 1;
-    /// udp://ip:port
-    string endpoint_addr = 2;
+    /// udp 直连端口
+    optional string endpoint_addr = 2;
     /// udp 端口
     uint32 port = 3;
 }

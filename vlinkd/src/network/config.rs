@@ -5,13 +5,13 @@ use x25519_dalek::{PublicKey, StaticSecret};
 use core::proto::pb::abi::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error;
+use vlink_tun::device::config::ArgConfig;
 use vlink_tun::DeviceConfig;
 
 pub struct PeerStaticSecret {
     pub private_key: StaticSecret,
     public_key: PublicKey,
 }
-
 
 
 impl Debug for PeerStaticSecret {
@@ -74,7 +74,7 @@ pub struct PeersConfig {}
 pub struct VlinkNetworkConfig {
     pub tun_name: Option<String>,
     pub device_config: DeviceConfig,
+    pub arg_config: ArgConfig,
     // pub test: RespConfig,
-
 }
 

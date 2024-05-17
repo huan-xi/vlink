@@ -42,9 +42,9 @@ pub struct ReqConfig {
 pub struct PeerEnter {
     #[prost(string, tag="1")]
     pub ip: ::prost::alloc::string::String,
-    //// udp://ip:port
-    #[prost(string, tag="2")]
-    pub endpoint_addr: ::prost::alloc::string::String,
+    //// udp 直连端口
+    #[prost(string, optional, tag="2")]
+    pub endpoint_addr: ::core::option::Option<::prost::alloc::string::String>,
     //// udp 端口
     #[prost(uint32, tag="3")]
     pub port: u32,
@@ -118,8 +118,8 @@ pub struct BcPeerEnter {
     //// 网络中的ip
     #[prost(string, tag="2")]
     pub ip: ::prost::alloc::string::String,
-    #[prost(string, tag="4")]
-    pub endpoint_addr: ::prost::alloc::string::String,
+    #[prost(string, optional, tag="4")]
+    pub endpoint_addr: ::core::option::Option<::prost::alloc::string::String>,
     //// udp 端口
     #[prost(uint32, tag="5")]
     pub port: u32,

@@ -19,6 +19,7 @@ use core::proto::pb::abi::*;
 
 use core::proto::pb::abi::to_client::*;
 use vlink_tun::{DeviceConfig, PeerConfig};
+use vlink_tun::device::config::ArgConfig;
 use vlink_tun::device::peer::cidr::Cidr;
 use vlinkd::client::VlinkClient;
 use vlinkd::network::config::VlinkNetworkConfig;
@@ -41,14 +42,27 @@ use crate::to_server::ToServerData;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(short, long)]
+    /// tun 网卡名称
+    #[arg(long)]
     tun_name: Option<String>,
     /// 服务器地址
     #[arg(short, long)]
     server: String,
-
+    /// 数据目录配置
     #[arg(short, long)]
     config_dir: Option<String>,
+    /// 加入主机名
+    #[arg(long)]
+    hostname: Option<String>,
+    /// 服务器连接 token
+    #[arg(short, long)]
+    token: Option<String>,
+    /// 连接端点地址
+    #[arg(short, long)]
+    endpoint_addr: Option<String>,
+    /// 监听本地 udp 端口,为空则随机
+    #[arg(short, long)]
+    port: Option<u16>,
 }
 
 #[tokio::main]
@@ -87,7 +101,13 @@ pub async fn main() -> anyhow::Result<()> {
     let mut device_config = DeviceConfig {
         private_key: state.secret.private_key.to_bytes(),
         fwmark: 0,
-        port: resp_config.port as u16,
+        port: {
+            if resp_config.port > 0 {
+                resp_config.port as u16
+            } else {
+                args.port.unwrap_or(0)
+            }
+        },
         peers: Default::default(),
         address: resp_config.address.into(),
         network: resp_config.network.into(),
@@ -100,7 +120,13 @@ pub async fn main() -> anyhow::Result<()> {
         device_config = device_config.peer(PeerConfig {
             public_key: pk.try_into().unwrap(),
             allowed_ips,
-            endpoint: Some(SocketAddr::V4(SocketAddrV4::new(p.endpoint_addr.parse().unwrap(), p.port as u16))),
+            endpoint: match p.endpoint_addr.clone() {
+                None => {None}
+                Some(addr) => {
+                    //Some(SocketAddr::V4(SocketAddrV4::new(e.endpoint_addr.parse().unwrap(), e.port as u16)))
+                    Some(SocketAddr::new(addr.parse()?, p.port as u16))
+                }
+            },
             preshared_key: None,
             lazy: false,
             no_encrypt: false,
@@ -111,6 +137,9 @@ pub async fn main() -> anyhow::Result<()> {
     let cfg = VlinkNetworkConfig {
         tun_name: None,
         device_config,
+        arg_config: ArgConfig {
+            endpoint_addr: args.endpoint_addr,
+        },
     };
 
     let network = VlinkNetworkManager::new(client, cfg);

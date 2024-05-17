@@ -154,7 +154,7 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
             peers.push(BcPeerEnter {
                 pub_key: r.key().clone(),
                 ip: r.addr.to_string(),
-                endpoint_addr: r.endpoint_addr.to_string(),
+                endpoint_addr: r.endpoint_addr.clone().map(|s| s.to_string()),
                 port: r.port,
                 last_con_type: None,
             });
@@ -186,12 +186,20 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
                         })).await?;
                     }
                 }
+
                 ToServerData::PeerEnter(e) => {
                     //查询信息->peer
+                    let endpoint_addr = match e.endpoint_addr.clone() {
+                        None => None,
+                        Some(s) => {
+                            Some(s.parse()?)
+                        }
+                    };
+
                     server.peers.insert(pubkey.clone(), VlinkPeer {
                         connect: client.clone(),
-                        endpoint_addr: e.endpoint_addr.parse().unwrap(),
-                        addr: e.ip.parse().unwrap(),
+                        endpoint_addr,
+                        addr: e.ip.clone().parse()?,
                         port: e.port,
                     });
                     //广播
@@ -217,14 +225,6 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
                             Ok::<(), anyhow::Error>(())
                         });
 
-                        /* let a = k.connect.clone();
-                         let c = v.client.clone();
-                         let id = id;
-                         let e = e.clone();
-                         task.push(async move {
-                             c.send(Some(id), ToClientData::PeerEnter(e.clone())).await?;
-                             Ok::<(), anyhow::Error>(())
-                         });*/
                     });
 
                     join_all(task).await;

@@ -41,7 +41,7 @@ message BcPeerEnter {
     string pub_key = 1;
     /// 网络中的ip
     string ip = 2;
-    string endpoint_addr = 4;
+    optional string endpoint_addr = 4;
     /// udp 端口
     uint32 port = 5;
     /// 上次连接类型
