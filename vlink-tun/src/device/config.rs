@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Duration;
+use ip_network::IpNetwork;
 use crate::{LocalStaticSecret};
 use crate::device::peer::cidr::Cidr;
 
@@ -29,8 +30,7 @@ pub struct DeviceConfig {
     pub peers: HashMap<[u8; 32], PeerConfig>,
     pub address: Ipv4Addr,
     //网络
-    pub network: Ipv4Addr,
-    pub netmask: u8,
+    pub network: IpNetwork,
 }
 #[derive(Debug, Clone)]
 pub struct ArgConfig {

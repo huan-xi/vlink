@@ -7,15 +7,14 @@ use log::{error, info};
 use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::{broadcast, RwLock};
-use tokio::sync::broadcast::Sender;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 use crate::connect::ClientConnect;
-use core::proto::pb::abi::ReqHandshake;
-use core::proto::pb::abi::to_server::ToServerData;
-use core::proto::pb::abi::to_client::ToClientData;
+use vlink_core::proto::pb::abi::ReqHandshake;
+use vlink_core::proto::pb::abi::to_server::ToServerData;
+use vlink_core::proto::pb::abi::to_client::ToClientData;
 use crate::network::{NetworkCtrl, NetworkCtrlCmd};
-use core::proto::pb::abi::ToClient;
+use vlink_core::proto::pb::abi::ToClient;
 
 pub struct VlinkClient {
     conn: Arc<RwLock<ClientConnect>>,
@@ -23,7 +22,7 @@ pub struct VlinkClient {
 }
 
 impl VlinkClient {
-    pub async fn spawn(addr: &str, pub_key: &str, ctrl: NetworkCtrl) -> anyhow::Result<Self> {
+    pub async fn spawn(addr: &str, param: HandshakeParam, ctrl: NetworkCtrl) -> anyhow::Result<Self> {
         //开启连接
         let stream = TcpStream::connect(addr).await?;
         let (tx, _) = broadcast::channel::<ToClient>(10);
@@ -46,11 +45,11 @@ impl VlinkClient {
                 }
             };
         };
-        let pub_key_c = pub_key.to_string();
 
         //重连
         let ctrl_c = ctrl.clone();
         let txc = tx.clone();
+        let pc = param.clone();
         let reconnect = async move {
             while let Ok(_) = etx.send(None).await {
                 let _ = etx.send(None).await;
@@ -66,7 +65,7 @@ impl VlinkClient {
                 // even_loop = Some(new_loop);
                 info!("重新连接成功");
                 etx.send(Some(new_loop)).await.unwrap();
-                if let Err(e) = handshake(&conn, pub_key_c.as_str()).await {
+                if let Err(e) = handshake(&conn, pc.clone()).await {
                     error!("握手失败:{}", e);
                     //退出
                     break;
@@ -80,10 +79,12 @@ impl VlinkClient {
             Ok::<(), anyhow::Error>(())
         };
         let lock_conn_c = lock_conn.clone();
+
+
         let ctrl_c = ctrl.clone();
         let txc = tx.clone();
         let process = async move {
-            process_cmd(lock_conn_c, ctrl_c,txc).await
+            process_cmd(lock_conn_c, ctrl_c, txc).await
         };
 
         tokio::spawn(async move {
@@ -97,25 +98,31 @@ impl VlinkClient {
             }
         });
 
-        handshake(lock_conn.read().await.deref(), pub_key).await?;
+        handshake(lock_conn.read().await.deref(), param).await?;
 
 
         Ok(
-            Self { conn: lock_conn ,tx }
+            Self { conn: lock_conn, tx }
         )
     }
 
-    pub async fn request(&self, data: ToServerData) -> anyhow::Result<Option<ToClientData>> {
+    pub async fn request(&self, data: ToServerData) -> anyhow::Result<ToClientData> {
         let conn = self.conn.read().await;
-        conn.request(data).await
+        let data = conn.request(data).await?.ok_or(anyhow!("请求失败,返回数据为空"));
+        if let Ok(ToClientData::Error(e) )= &data {
+            return Err(anyhow!("请求失败:{}",e.msg));
+        }
+        data
     }
+
+
     pub async fn send(&self, data: ToServerData) -> anyhow::Result<u64> {
         let conn = self.conn.read().await;
         conn.send(None, data).await
     }
 }
 
-async fn process_cmd(conn: Arc<RwLock<ClientConnect>>, ctrl: NetworkCtrl, txc: Sender<ToClient>) {
+async fn process_cmd(conn: Arc<RwLock<ClientConnect>>, ctrl: NetworkCtrl, txc: broadcast::Sender<ToClient>) {
     loop {
         let mut recv = txc.subscribe();
         loop {
@@ -135,10 +142,21 @@ async fn process_cmd(conn: Arc<RwLock<ClientConnect>>, ctrl: NetworkCtrl, txc: S
 
 async fn process_cmd0(conn: Arc<RwLock<ClientConnect>>) {}
 
-async fn handshake(conn: &ClientConnect, pub_key: &str) -> anyhow::Result<()> {
+#[derive(Clone)]
+pub struct HandshakeParam {
+    pub pub_key: String,
+    pub token: String,
+}
+
+/// 客户端握手
+/// token(用于加入网络) or encrypt_flag(校验私钥是否正确)
+async fn handshake(conn: &ClientConnect, param: HandshakeParam) -> anyhow::Result<()> {
+    //私钥签名
+
     let resp = conn.request(ToServerData::Handshake(ReqHandshake {
         version: 0,
-        pub_key: pub_key.to_string(),
+        pub_key: param.pub_key,
+        token: param.token,
     })).await?;
     match resp {
         Some(ToClientData::RespHandshake(e)) => {

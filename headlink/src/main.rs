@@ -1,22 +1,23 @@
-mod client;
-mod server;
-mod peer;
-mod api;
+
 
 use clap::Parser;
 use log::{error, info};
 use tokio::net::TcpListener;
 
 use futures::{AsyncReadExt, FutureExt, select, SinkExt, StreamExt};
-use crate::client::ClientStream;
+use headlink::db::init::open_db;
+use headlink::server;
+use headlink::client::ClientStream;
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// 服务器地址
     #[arg(short, long)]
     listen: Option<String>,
+    /// 数据库连接
     #[arg(short, long)]
-    db_link: Option<String>,
+    db_schame: Option<String>,
 }
 
 /// 流程,客户端连接
@@ -36,26 +37,29 @@ async fn main() -> anyhow::Result<()> {
     let tcp = TcpListener::bind(addr.as_str()).await?;
     //处理数据
     info!("Start listening on {}", addr.as_str());
+    let conn = open_db(args.db_schame.expect("db schema不能为空").as_str()).await;
+
+
     //广播器
     // let (mut tx, mut rx) = broadcast::channel(16);
-    let server = server::VlinkServer::new();
+    let server = server::VlinkServer::new(conn);
     let server_c = server.clone();
     loop {
+        info!("start accept");
         let (stream, addr) = tcp.accept().await?;
         info!("Client: {:?} connected", addr);
         let (stream, even_loop) = ClientStream::new(stream, addr.clone(), server_c.clone());
-        server_c.insert_client(stream.client.clone());
-        //处理数据流
         let server_cc = server_c.clone();
         tokio::spawn(async move {
+            server_cc.insert_client(stream.client.clone());
             if let Err(e) = even_loop.await {
                 error!("Client Process error {:?}",e );
             }
             info!("Client: {:?} disconnected", addr);
             let cli = server_cc.remove_client(&addr).await;
-            if let Some((_, mut c)) = cli {
-                if let Some(c) = c.pub_key.get() {
-                    server_cc.remove_peer(&c);
+            if let Some(mut c) = cli {
+                if let Some(c) = c.client_id.get() {
+                    // server_cc.remove_peer(c.pub_key.as_str());
                 }
             };
         });

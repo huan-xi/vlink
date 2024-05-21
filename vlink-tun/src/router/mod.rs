@@ -8,7 +8,7 @@ pub use linux::Router;
 
 #[cfg(any(target_os = "macos", target_os = "darwin"))]
 mod darwin;
-pub mod helpers;
+
 
 #[cfg(any(target_os = "macos", target_os = "darwin"))]
 pub use darwin::Router;

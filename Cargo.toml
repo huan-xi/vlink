@@ -1,10 +1,13 @@
 [workspace]
 members = [
-    "headlink", "core",
+    "headlink", "vlink-core",
     "derp/vlink-derp-server",
     "derp/frp-client",
     "derp/tailscale-derp", "vlinkd"]
 [workspace.dependencies]
+axum = "0.7.4"
+tower-http = { version = "^0.5.2", features = ["fs", "catch-panic"] }
+once_cell = "1.19.0"
 tokio = { version = "1.28.1", features = ["full"] }
 tokio-util = { version = "0.7.8", features = ["full"] }
 x25519-dalek = { version = "2.0", features = ["reusable_secrets", "static_secrets"] }
@@ -21,12 +24,11 @@ prost = "0.8" # 处理 protobuf 的代码
 futures = "0"
 bytes = "1.3.0"
 clap = { version = "4.4.6", features = ["derive"] }
-axum = "0"
 axum-extra = "0"
 axum-server = "0"
 chrono = "0"
 mime = "0"
 sea-orm = "0"
 tap = "1.0.1"
-dashmap = "5.5.3"
+#dashmap = "5.5.3"
 

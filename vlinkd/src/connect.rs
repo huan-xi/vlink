@@ -7,11 +7,11 @@ use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use prost::Message;
 
 use tokio::net::TcpStream;
-use core::proto::bind_transport;
-use core::proto::pb::abi::to_server::ToServerData;
-use core::proto::pb::abi::ToServer;
-use core::proto::pb::abi::ToClient;
-use core::proto::pb::abi::to_client::ToClientData;
+use vlink_core::proto::bind_transport;
+use vlink_core::proto::pb::abi::to_server::ToServerData;
+use vlink_core::proto::pb::abi::ToServer;
+use vlink_core::proto::pb::abi::ToClient;
+use vlink_core::proto::pb::abi::to_client::ToClientData;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use bytes::{Bytes, BytesMut};
 use log::{error, info};

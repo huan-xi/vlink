@@ -2,8 +2,7 @@ mod test_route;
 
 
 use std::collections::HashSet;
-use std::net::{SocketAddr, SocketAddrV4};
-use std::time::Duration;
+use std::net::{IpAddr, SocketAddr, SocketAddrV4};
 use anyhow::anyhow;
 use futures::Stream;
 
@@ -11,17 +10,13 @@ use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use log::{debug, error, info};
 use prost::Message;
 use clap::Parser;
-use rand_core::OsRng;
-use tokio::time;
-use x25519_dalek::StaticSecret;
-
-use core::proto::pb::abi::*;
-
-use core::proto::pb::abi::to_client::*;
+use ip_network::IpNetwork;
+use vlink_core::proto::pb::abi::*;
+use vlink_core::proto::pb::abi::to_client::*;
 use vlink_tun::{DeviceConfig, PeerConfig};
 use vlink_tun::device::config::ArgConfig;
 use vlink_tun::device::peer::cidr::Cidr;
-use vlinkd::client::VlinkClient;
+use vlinkd::client::{HandshakeParam, VlinkClient};
 use vlinkd::network::config::VlinkNetworkConfig;
 use vlinkd::network::{NetworkCtrl, VlinkNetworkManager};
 use vlinkd::storage::Storage;
@@ -56,7 +51,7 @@ struct Args {
     hostname: Option<String>,
     /// 服务器连接 token
     #[arg(short, long)]
-    token: Option<String>,
+    token: String,
     /// 连接端点地址
     #[arg(short, long)]
     endpoint_addr: Option<String>,
@@ -81,7 +76,11 @@ pub async fn main() -> anyhow::Result<()> {
     let (tx, rx) = tokio::sync::mpsc::channel(10);
     let ctrl = NetworkCtrl { sender: tx };
 
-    let client = match VlinkClient::spawn(addr, state.secret.base64_pub().as_str(), ctrl).await {
+
+    let client = match VlinkClient::spawn(addr, HandshakeParam {
+        pub_key: state.secret.base64_pub(),
+        token: args.token.clone(),
+    }, ctrl).await {
         Ok(c) => { c }
         Err(e) => {
             error!("连接服务器失败:{}",e);
@@ -92,12 +91,15 @@ pub async fn main() -> anyhow::Result<()> {
 
     let resp = client.request(ToServerData::ReqConfig(ReqConfig {})).await?;
     info!("resp:{:?}",resp);
-    let resp_config = if let Some(ToClientData::RespConfig(config)) = resp {
+
+    let resp_config = if let ToClientData::RespConfig(config) = resp {
         config
     } else {
-        return Err(anyhow!("响应错误"));
+        return Err(anyhow!("响应数据错误错误"));
     };
 
+
+    let network = IpNetwork::new(IpAddr::V4(resp_config.network.into()), resp_config.mask as u8)?;
     let mut device_config = DeviceConfig {
         private_key: state.secret.private_key.to_bytes(),
         fwmark: 0,
@@ -110,18 +112,17 @@ pub async fn main() -> anyhow::Result<()> {
         },
         peers: Default::default(),
         address: resp_config.address.into(),
-        network: resp_config.network.into(),
-        netmask: resp_config.mask as u8,
+        network,
     };
     for p in resp_config.peers.iter() {
-        let pk = core::base64::decode_base64(p.pub_key.as_str())?;
+        let pk = vlink_core::base64::decode_base64(p.pub_key.as_str())?;
         let mut allowed_ips = HashSet::new();
         allowed_ips.insert(Cidr::new(p.ip.parse().unwrap(), 32));
         device_config = device_config.peer(PeerConfig {
             public_key: pk.try_into().unwrap(),
             allowed_ips,
             endpoint: match p.endpoint_addr.clone() {
-                None => {None}
+                None => { None }
                 Some(addr) => {
                     //Some(SocketAddr::V4(SocketAddrV4::new(e.endpoint_addr.parse().unwrap(), e.port as u16)))
                     Some(SocketAddr::new(addr.parse()?, p.port as u16))
@@ -148,4 +149,57 @@ pub async fn main() -> anyhow::Result<()> {
 
     error!("服务器断开");
     Ok(())
+}
+
+#[cfg(test)]
+pub mod test {
+    use std::collections::hash_map::Entry;
+    use std::sync::Arc;
+    use std::time::Duration;
+    use dashmap::{DashMap, Map};
+    // use dashmap::mapref::entry::Entry;
+    use futures_util::future::join_all;
+    use log::info;
+    use vlink_core::rw_map::RwMap;
+
+
+    #[tokio::test]
+    pub async fn test() {
+        // let map = Arc::new(DashMap::new());
+        // map.entry()
+        let map = RwMap::default();
+        log4rs::init_file("/Users/huanxi/project/vlink/log4rs.yaml", Default::default()).unwrap();
+        map.insert("b".to_string(), -1).await;
+
+        let id = "a".to_string();
+        let mut tasks = vec![];
+        for i in 0..100 {
+            let map_c = map.clone();
+            let idc= id.clone();
+            tasks.push(async move {
+                match map_c.inter.write().await.entry(idc) {
+                    Entry::Occupied(e) => {
+                        // info!("o");
+                    }
+                    Entry::Vacant(e) => {
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        info!("insert {}",i);
+                        e.insert(i);
+                    }
+                };
+                // match map_c.entry(idc) {
+                //     Entry::Occupied(e) => {
+                //         info!("o");
+                //     }
+                //     Entry::Vacant(e) => {
+                //         tokio::time::sleep(Duration::from_secs(1)).await;
+                //         info!("insert {}",i);
+                //         e.insert(i);
+                //     }
+                // };
+            });
+        }
+        join_all(tasks).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    }
 }

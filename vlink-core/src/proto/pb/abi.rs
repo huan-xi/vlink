@@ -34,6 +34,8 @@ pub struct ReqHandshake {
     ///访问token,用于身份校验
     #[prost(string, tag="2")]
     pub pub_key: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub token: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReqConfig {
@@ -67,7 +69,7 @@ pub struct ToClient {
     /// 通信id
     #[prost(uint64, tag="1")]
     pub id: u64,
-    #[prost(oneof="to_client::ToClientData", tags="2, 3, 4")]
+    #[prost(oneof="to_client::ToClientData", tags="2, 3, 4, 5")]
     pub to_client_data: ::core::option::Option<to_client::ToClientData>,
 }
 /// Nested message and enum types in `ToClient`.
@@ -75,12 +77,21 @@ pub mod to_client {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum ToClientData {
         #[prost(message, tag="2")]
-        RespHandshake(super::RespHandshake),
+        Error(super::ToClientError),
         #[prost(message, tag="3")]
-        RespConfig(super::RespConfig),
+        RespHandshake(super::RespHandshake),
         #[prost(message, tag="4")]
+        RespConfig(super::RespConfig),
+        #[prost(message, tag="5")]
         PeerEnter(super::BcPeerEnter),
     }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ToClientError {
+    #[prost(int32, tag="1")]
+    pub code: i32,
+    #[prost(string, tag="2")]
+    pub msg: ::prost::alloc::string::String,
 }
 //// 握手响应
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -93,8 +104,8 @@ pub struct RespHandshake {
 //// 配置响应
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RespConfig {
-    #[prost(string, tag="1")]
-    pub network_id: ::prost::alloc::string::String,
+    #[prost(int64, tag="1")]
+    pub network_id: i64,
     /// 分配的网络地址
     #[prost(uint32, tag="2")]
     pub address: u32,

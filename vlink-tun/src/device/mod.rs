@@ -1,7 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
-use ip_network::Ipv4Network;
+use ip_network::{IpNetwork, Ipv4Network};
 use tokio_util::sync::CancellationToken;
 use crate::{LocalStaticSecret, Tun};
 use crate::errors::Error;
@@ -18,7 +18,7 @@ use crate::device::peer::session::Session;
 use crate::device::rate_limiter::RateLimiter;
 use crate::device::transport::{Transport, TransportDispatcher};
 use crate::device::transport::udp::UdpTransport;
-use crate::router::{helpers, Router};
+use crate::router::{Router};
 use crate::tun::IFace;
 
 pub mod peer;
@@ -79,8 +79,13 @@ impl Device {
         let tun = crate::NativeTun::new(name).map_err(Error::Tun)?;
         tun.enabled(true)?;
         //设置ip,network
-        debug!("set ip :{};{}",cfg.address,cfg.netmask);
-        let mask = Ipv4Addr::from(helpers::bite_mask(cfg.netmask));
+        let mask = match cfg.network {
+            IpNetwork::V4(n) => n.full_netmask(),
+            IpNetwork::V6(n) => todo!("为实现ipv6"),
+        };
+        debug!("set ip :{};{}",cfg.address,mask);
+
+        // let mask = Ipv4Addr::from(helpers::bite_mask(cfg.netmask));
         // ip_network::Ipv4Network::new(cfg.address, cfg.netmask).unwrap();
         //let network = Ipv4Network::new(cfg.address, cfg.netmask);
         tun.set_ip(cfg.address, mask)?;
@@ -88,7 +93,7 @@ impl Device {
         let router = Router::new(tun.name().to_string());
 
         //Cidr
-        router.add_route(IpAddr::V4(cfg.network), IpAddr::V4(mask))?;
+        router.add_route(cfg.network.network_address(), IpAddr::V4(mask))?;
 
         // wiretun::Device::with_udp(tun, cfg).await
         let token = CancellationToken::new();
@@ -175,7 +180,6 @@ impl DeviceInner {
         let endpoint = cfg.endpoint.map(|addr| settings.inbound.endpoint_for(addr));
         index.insert(secret, cfg.allowed_ips, endpoint, cfg.persistent_keepalive);
     }
-
 }
 
 

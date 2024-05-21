@@ -1,5 +1,5 @@
 [package]
-name = "core"
+name = "vlink-core"
 version = "0.1.0"
 edition = "2021"
 
@@ -32,7 +32,7 @@ tokio-util.workspace = true
 flate2 = "1"
 tokio = { version = "1.28.1", features = ["full"] }
 anyhow = "1" # 错误处理
-dashmap.workspace = true
+#dashmap.workspace = true
 [dev-dependencies]
 async-prost = "0.2.1"
 

@@ -2,7 +2,6 @@ use std::fmt::{Debug, Display, Formatter};
 use std::net::Ipv4Addr;
 use base64::Engine;
 use x25519_dalek::{PublicKey, StaticSecret};
-use core::proto::pb::abi::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error;
 use vlink_tun::device::config::ArgConfig;
@@ -65,6 +64,7 @@ impl PeerStaticSecret {
     pub fn hex_private(&self) -> String {
         hex::encode(self.private_key.as_ref())
     }
+
 }
 
 #[derive(Debug, Clone)]

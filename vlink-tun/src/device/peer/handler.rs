@@ -14,6 +14,8 @@ pub struct PeerHandle {
 }
 
 impl PeerHandle {
+    /// peer 任务, 定时握手, 处理入口数据, 发送数据
+
     pub fn spawn(token: CancellationToken,
                  peer: Arc<Peer>,
                  inbound: InboundRx,

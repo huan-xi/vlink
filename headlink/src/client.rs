@@ -1,4 +1,8 @@
-use std::cell::OnceCell;
+mod dispatcher;
+pub mod handler;
+pub mod error;
+
+use sea_orm::ColumnTrait;
 use std::future::Future;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::{Arc, OnceLock};
@@ -6,32 +10,42 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use anyhow::{anyhow, Error};
 use bytes::{Bytes, BytesMut};
-use core::proto::pb::abi::*;
+use vlink_core::proto::pb::abi::*;
 use futures::{SinkExt, Stream, StreamExt};
 use log::{debug, error, info};
-use core::proto::pb::abi::RespConfig;
+use vlink_core::proto::pb::abi::RespConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::select;
-use core::proto::pb::abi::to_server::ToServerData;
-use core::proto::pb::abi::to_client::*;
-use core::proto::pb::abi::ToClient;
-use core::proto::pb::abi::RespHandshake;
-use core::proto::pb::abi::ToServer;
+use vlink_core::proto::pb::abi::to_server::ToServerData;
+use vlink_core::proto::pb::abi::to_client::*;
+use vlink_core::proto::pb::abi::ToClient;
+use vlink_core::proto::pb::abi::RespHandshake;
+use vlink_core::proto::pb::abi::ToServer;
 use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
 use crate::server::VlinkServer;
-use core::proto::bind_transport;
+use vlink_core::proto::bind_transport;
 use futures::FutureExt;
 use futures_util::future::join_all;
 use prost::Message;
+use sea_orm::{EntityTrait, QueryFilter};
 use tokio::time::timeout;
+use crate::db::entity::prelude::{NetworkEntity, NetworkTokenColumn, NetworkTokenEntity};
+use crate::client::dispatcher::{Dispatcher, ClientRequest, RequestContext};
 use crate::peer::VlinkPeer;
 
 pub type ToClientParam = (Option<u64>, ToClientData, oneshot::Sender<Result<u64, std::io::Error>>);
 
+#[derive(Clone, Debug)]
+pub struct ClientId {
+    pub pub_key: String,
+    pub network_id: i64,
+}
+
+/// 客户端连接
 #[derive(Clone)]
 pub struct ClientConnect {
     pub addr: SocketAddr,
-    pub pub_key: Arc<OnceLock<String>>,
+    pub client_id: Arc<OnceLock<ClientId>>,
     sender: mpsc::Sender<ToClientParam>,
 }
 
@@ -55,7 +69,7 @@ pub struct ClientStream {
     // inner: Option<S>,
     pub server: VlinkServer,
     // receiver: Option<mpsc::Receiver<Vec<u8>>>,
-    pub(crate) client: ClientConnect,
+    pub client: ClientConnect,
     is_connected: Arc<AtomicBool>,
     recv_tx: broadcast::Sender<ToServer>,
 }
@@ -72,7 +86,7 @@ impl ClientStream {
         //addr,
         let client = ClientConnect {
             addr,
-            pub_key: Arc::new(Default::default()),
+            client_id: Arc::new(Default::default()),
             sender: tx,
         };
         let (mut sink, mut stream) = bind_transport(stream).split();
@@ -112,16 +126,15 @@ impl ClientStream {
         let event_loop = async move {
             is_connected_c.store(true, Ordering::SeqCst);
             loop {
-                select! {
-                    _ = recv_handler => {break;}
-                    _ = to_client_handler => {break;}
-                    resp = process => {
-                        return resp;
-                    }
-                }
+                let resp = select! {
+                    resp = recv_handler => {resp}
+                    resp = to_client_handler => {resp}
+                    resp = process => {resp}
+                };
+                error!("process error:{:?}",resp);
+                is_connected_c.store(false, Ordering::SeqCst);
+                return resp;
             }
-            is_connected_c.store(false, Ordering::SeqCst);
-            Ok::<(), anyhow::Error>(())
         };
 
         (Self {
@@ -131,133 +144,90 @@ impl ClientStream {
             recv_tx,
         }, event_loop)
     }
-
-
-    /// 循环处理客户端数据
-    pub async fn process(mut self) -> anyhow::Result<()> {
-        //启动Event loop
-
-
-        Ok(())
-    }
 }
 
+/// 循环处理客户端数据
 async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcast::Sender<ToServer>, recv_rx: broadcast::Receiver<ToServer>) -> anyhow::Result<()> {
+    let client_id = await_handshake(server.clone(), 10, client.clone(), recv_rx).await?;
     let mut recv = tx.subscribe();
-    let pubkey = await_handshake(server.clone(), 10, client.clone(), recv_rx).await?;
-    debug!("握手成功,开始接受数据:{:?}",pubkey);
+    debug!("握手成功,clientId:{:?}",client_id);
+    let network = server.get_network(client_id.network_id).await?;
+    debug!("1");
+
+    let ctx = Arc::new(RequestContext {
+        client_id: client_id.clone(),
+        server: server.clone(),
+        client: client.clone(),
+        network,
+    });
+    let dispatcher = Dispatcher::new();
+    debug!("握手成功,开始接受数据:{:?}",client_id);
     while let Ok(data) = recv.recv().await {
         info!("处理数据:{:?}",data);
         let id = data.id;
-        let mut peers = vec![];
-        server.peers.iter().for_each(|r| {
-            peers.push(BcPeerEnter {
-                pub_key: r.key().clone(),
-                ip: r.addr.to_string(),
-                endpoint_addr: r.endpoint_addr.clone().map(|s| s.to_string()),
-                port: r.port,
-                last_con_type: None,
-            });
-        });
-
         if let Some(data) = data.to_server_data {
-            match data {
-                ToServerData::ReqConfig(_) => {
-                    //下发配置
-                    if "ep7HwtuUK7BIkxijh3y09u4DQgr+XnJJhVVrCus4oxc=" == pubkey {
-                        client.send(Some(id), ToClientData::RespConfig(RespConfig {
-                            network_id: "test".to_string(),
-                            address: Ipv4Addr::new(192, 168, 10, 2).into(),
-                            mask: 24,
-                            network: Ipv4Addr::new(192, 168, 10, 0).into(),
-                            port: 0,
-                            ipv6_addr: None,
-                            peers,
-                        })).await?;
-                    } else if "vlHnufyqhsl4IhcnunAmRHUzdTI5Gn+5KgNWOtApkFs=" == pubkey {
-                        client.send(Some(id), ToClientData::RespConfig(RespConfig {
-                            network_id: "test".to_string(),
-                            address: Ipv4Addr::new(192, 168, 10, 3).into(),
-                            mask: 24,
-                            network: Ipv4Addr::new(192, 168, 10, 0).into(),
-                            port: 0,
-                            ipv6_addr: None,
-                            peers,
-                        })).await?;
-                    }
-                }
-
-                ToServerData::PeerEnter(e) => {
-                    //查询信息->peer
-                    let endpoint_addr = match e.endpoint_addr.clone() {
-                        None => None,
-                        Some(s) => {
-                            Some(s.parse()?)
-                        }
-                    };
-
-                    server.peers.insert(pubkey.clone(), VlinkPeer {
-                        connect: client.clone(),
-                        endpoint_addr,
-                        addr: e.ip.clone().parse()?,
-                        port: e.port,
-                    });
-                    //广播
-                    let mut task = vec![];
-                    let pubkey_c = pubkey.clone();
-                    server.peers.iter().for_each(|k| {
-                        let key = k.key();
-                        if pubkey_c.as_str() == key.as_str() {
-                            return;
-                        };
-                        //todo network_id
-                        let conn = k.connect.clone();
-                        let pubkey_cc = pubkey_c.clone();
-                        let ec = e.clone();
-                        task.push(async move {
-                            conn.send(None, ToClientData::PeerEnter(BcPeerEnter {
-                                pub_key: pubkey_cc.clone(),
-                                ip: ec.ip,
-                                endpoint_addr: ec.endpoint_addr.clone(),
-                                port: ec.port,
-                                last_con_type: Some(0),
-                            })).await?;
-                            Ok::<(), anyhow::Error>(())
-                        });
-
-                    });
-
-                    join_all(task).await;
-                }
-                _ => {}
+            // data.hande();
+            if let Err(e) = dispatcher.dispatch(ClientRequest {
+                id,
+                ctx: ctx.clone(),
+            }, data).await {
+                // 发送错误
+                error!("处理数据错误:{:?}",e);
+                client.send(Some(id), ToClientData::Error(ToClientError {
+                    code: e.code(),
+                    msg: e.to_string(),
+                })).await?;
             }
         } else {
-            error!("数据错误:pub:{}",pubkey);
+            error!("数据错误:pub:{}",client_id.pub_key);
         }
     };
     Ok(())
 }
 
-//<T: AsyncRead + AsyncWrite>(stream: T) where <T as Stream>::Item: Vec<u8>
-async fn await_handshake(server: VlinkServer, secs: u64, client: ClientConnect, mut rx: broadcast::Receiver<ToServer>) -> anyhow::Result<String> {
-    timeout(Duration::from_secs(secs), async {
-        while let Ok(data) = rx.recv().await {
-            let id = data.id;
-            if let Some(ToServerData::Handshake(data)) = data.to_server_data {
-                debug!("握手包数据:{:?}",data);
-                let pub_key = data.pub_key;
 
-                if let Some(_) = server.peers.get(pub_key.as_str()) {
-                    let err = format!("peer已连接,pub({})", pub_key.as_str());
-                    client.send(Some(id), ToClientData::RespHandshake(RespHandshake { success: false, msg: Some(err.clone()) })).await?;
-                    return Err(anyhow!(err));
-                }
-                client.pub_key.set(pub_key.clone()).map_err(|e| anyhow!("set error"))?;
-                //发送握手成功
-                client.send(Some(id), ToClientData::RespHandshake(RespHandshake { success: true, msg: None })).await?;
-                return Ok(pub_key);
-            };
+//<T: AsyncRead + AsyncWrite>(stream: T) where <T as Stream>::Item: Vec<u8>
+/// 握手成功返回pub_key
+async fn await_handshake(server: VlinkServer, secs: u64, client: ClientConnect, mut rx: broadcast::Receiver<ToServer>) -> anyhow::Result<ClientId> {
+    timeout(Duration::from_secs(secs), async {
+        if let Ok(data) = rx.recv().await {
+            let id = data.id;
+            let result = handshake0(&server, &client, data).await;
+            client.send(Some(id), ToClientData::RespHandshake(RespHandshake { success: result.is_ok(), msg: result.as_ref().err().map(|e| e.to_string()) })).await?;
+            return result;
         }
         Err(anyhow!("握手包处理错误"))
     }).await.map_err(|_| anyhow!("握手超时"))?
+}
+
+
+async fn handshake0(server: &VlinkServer, client: &ClientConnect, data: ToServer) -> anyhow::Result<ClientId> {
+    if let Some(ToServerData::Handshake(data)) = data.to_server_data {
+        debug!("握手包数据:{:?}",data);
+        let pub_key = data.pub_key.clone();
+        /*  if let Some(_) = server.peers.get(pub_key.as_str()) {
+              let err = format!("peer已连接,pub({})", pub_key.as_str());
+              return Err(anyhow!(err));
+          }*/
+        let token = NetworkTokenEntity::find()
+            .filter(NetworkTokenColumn::Token.eq(data.token.as_str()))
+            .one(server.conn())
+            .await?
+            .ok_or(anyhow!("token不存在"))?;
+        if token.disabled {
+            return Err(anyhow!("token已禁用"));
+        }
+        // 从server中 取网络
+        let network = server.get_network(token.network_id).await?;
+        let client_id = ClientId {
+            pub_key,
+            network_id: network.network_id,
+        };
+        client.client_id.set(client_id.clone()).map_err(|e| anyhow!("set error"))?;
+        //发送握手成功
+        // client.send(Some(id), ToClientData::RespHandshake(RespHandshake { success: true, msg: None })).await?;
+        return Ok(client_id);
+    } else {
+        Err(anyhow!("握手包数据错误"))
+    }
 }
