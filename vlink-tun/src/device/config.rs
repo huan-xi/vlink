@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Duration;
 use ip_network::IpNetwork;
+use serde::{Deserialize, Serialize};
 use crate::{LocalStaticSecret};
 use crate::device::peer::cidr::Cidr;
 
@@ -22,6 +23,9 @@ pub struct PeerConfig {
     pub persistent_keepalive: Option<Duration>,
 }
 
+impl PeerConfig {}
+
+
 #[derive(Debug, Clone)]
 pub struct DeviceConfig {
     pub private_key: [u8; 32],
@@ -32,10 +36,26 @@ pub struct DeviceConfig {
     //网络
     pub network: IpNetwork,
 }
+
 #[derive(Debug, Clone)]
 pub struct ArgConfig {
     pub endpoint_addr: Option<String>,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum TransportType {
+    NatUdp,
+}
+
+/// 传输层配置
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TransportConfig {
+    pub trans_type: TransportType,
+    pub params: String,
+}
+
+
+
 
 impl DeviceConfig {
     #[inline(always)]
@@ -73,4 +93,5 @@ impl DeviceConfig {
         LocalStaticSecret::new(self.private_key)
     }
 }
+
 

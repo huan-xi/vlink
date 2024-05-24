@@ -20,6 +20,8 @@ pub enum ExecuteError {
     PeerNotFound,
     #[error("IpNotMatch")]
     IpNotMatch,
+    #[error("IpNotFound")]
+    IpNotFound,
 }
 
 impl ExecuteError {

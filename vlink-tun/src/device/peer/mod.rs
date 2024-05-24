@@ -143,6 +143,6 @@ impl Display for Peer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         //             "Peer({})",
 //             crypto::encode_to_hex(self.secret.public_key().as_bytes())
-        write!(f, "Peer")
+        write!(f, "Peer()")
     }
 }

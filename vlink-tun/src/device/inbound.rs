@@ -20,8 +20,4 @@ impl Inbound {
         Endpoint::new(self.transport(), dst)
     }
 
-
-
-
-
 }

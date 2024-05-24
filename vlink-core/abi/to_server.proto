@@ -22,8 +22,8 @@ message ReqHandshake {
     uint32 version = 1;
     //访问token,用于身份校验
     string pub_key = 2;
-    string token = 3;
-
+    optional string token = 3;
+    optional string sign = 4;
 
 }
 message ReqConfig {

@@ -10,7 +10,6 @@ use crate::device::transport::{Endpoint, Transport, TransportDispatcher};
 
 /// UdpTransport is a UDP endpoint that implements the [`Transport`] trait.
 #[derive(Clone,Debug)]
-
 pub struct UdpTransport {
     port: u16,
     ipv4: Arc<UdpSocket>,
@@ -98,10 +97,10 @@ impl Display for UdpTransport {
 
 #[async_trait]
 impl Transport for UdpTransport {
+
     fn port(&self) -> u16 {
         self.port
     }
-
 
     async fn send_to(&self, data: &[u8], dst: SocketAddr,) -> Result<(), io::Error> {
         match dst {
@@ -131,21 +130,5 @@ impl Transport for UdpTransport {
         };
 
         Ok((Endpoint::new(TransportDispatcher::Udp(self.clone()), addr), data))
-    }
-
-    fn ipv4(&self) -> Ipv4Addr {
-        if let SocketAddr::V4(addr) = self.ipv4.local_addr().unwrap() {
-            *addr.ip()
-        } else {
-            unreachable!()
-        }
-    }
-
-    fn ipv6(&self) -> Ipv6Addr {
-        if let SocketAddr::V6(addr) = self.ipv6.local_addr().unwrap() {
-            *addr.ip()
-        } else {
-            unreachable!()
-        }
     }
 }

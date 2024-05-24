@@ -1,8 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::io::Error;
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::sync::Arc;
+use std::net::SocketAddr;
 use async_trait::async_trait;
 use crate::device::endpoint::Endpoint;
 use crate::device::transport::udp::UdpTransport;
@@ -24,16 +23,10 @@ impl Display for TransportDispatcher {
 
 #[async_trait]
 impl Transport for TransportDispatcher {
-    fn ipv4(&self) -> Ipv4Addr {
-        todo!()
-    }
-
-    fn ipv6(&self) -> Ipv6Addr {
-        todo!()
-    }
-
     fn port(&self) -> u16 {
-        todo!()
+        match self {
+            TransportDispatcher::Udp(udp) => { udp.port() }
+        }
     }
 
     async fn send_to(&self, data: &[u8], dst: SocketAddr) -> Result<(), Error> {
@@ -53,13 +46,6 @@ impl Transport for TransportDispatcher {
 
 #[async_trait]
 pub trait Transport: Sync + Send + Unpin + Display + 'static + Debug {
-    /// Binds to the given port and returns a new endpoint.
-    /// When the port is 0, the implementation should choose a random port.
-    // async fn bind(ipv4: Ipv4Addr, ipv6: Ipv6Addr, port: u16) -> Result<Self, io::Error>;
-
-    fn ipv4(&self) -> Ipv4Addr;
-
-    fn ipv6(&self) -> Ipv6Addr;
 
     /// Returns the port that the endpoint is bound to.
     fn port(&self) -> u16;

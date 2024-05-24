@@ -210,7 +210,7 @@ async fn handshake0(server: &VlinkServer, client: &ClientConnect, data: ToServer
               return Err(anyhow!(err));
           }*/
         let token = NetworkTokenEntity::find()
-            .filter(NetworkTokenColumn::Token.eq(data.token.as_str()))
+            .filter(NetworkTokenColumn::Token.eq(data.token.unwrap().as_str()))
             .one(server.conn())
             .await?
             .ok_or(anyhow!("token不存在"))?;

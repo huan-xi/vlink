@@ -5,7 +5,7 @@ use log::info;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use crate::network::config::{PeerStaticSecret, StorageConfig};
+use crate::config::{PeerStaticSecret, StorageConfig};
 
 pub struct Storage {
     pub path: Option<String>,

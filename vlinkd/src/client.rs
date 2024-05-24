@@ -22,6 +22,8 @@ pub struct VlinkClient {
 }
 
 impl VlinkClient {
+    /// 1. 连接握手
+
     pub async fn spawn(addr: &str, param: HandshakeParam, ctrl: NetworkCtrl) -> anyhow::Result<Self> {
         //开启连接
         let stream = TcpStream::connect(addr).await?;
@@ -156,7 +158,8 @@ async fn handshake(conn: &ClientConnect, param: HandshakeParam) -> anyhow::Resul
     let resp = conn.request(ToServerData::Handshake(ReqHandshake {
         version: 0,
         pub_key: param.pub_key,
-        token: param.token,
+        token:Some( param.token),
+        sign: None,
     })).await?;
     match resp {
         Some(ToClientData::RespHandshake(e)) => {

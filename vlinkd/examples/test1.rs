@@ -1,4 +1,5 @@
 use tokio::sync::broadcast;
+use vlink_tun::device::config::{TransportConfig, TransportType};
 
 #[tokio::main]
 async fn main() {
@@ -12,5 +13,19 @@ async fn main() {
     let mut rx = tx.subscribe();
     while let a = rx.recv().await.unwrap() {
         println!("{}", a)
+    }
+}
+#[cfg(test)]
+pub mod test {
+    use vlink_tun::device::config::{TransportConfig, TransportType};
+
+    #[test]
+    pub fn test() {
+        let a = TransportConfig {
+            trans_type: TransportType::NatUdp,
+            params: "abcd".to_string(),
+        };
+        println!("{}", serde_json::to_string(&a).unwrap());
+
     }
 }

@@ -97,7 +97,6 @@ impl Device {
 
         // wiretun::Device::with_udp(tun, cfg).await
         let token = CancellationToken::new();
-        // listen_addrs: (Ipv4Addr::UNSPECIFIED, Ipv6Addr::UNSPECIFIED),
         let transport = UdpTransport::bind(Ipv4Addr::UNSPECIFIED, Ipv6Addr::UNSPECIFIED, cfg.port).await?;
         let port = transport.port();
         let inbound = Inbound {
@@ -136,7 +135,7 @@ pub struct DeviceInner {
     pub tun: crate::NativeTun,
     pub tun_addr: Ipv4Addr,
     peers: Mutex<PeerList>,
-    settings: std::sync::Mutex<Settings>,
+    settings: Mutex<Settings>,
     /// 对入口数据限流
     rate_limiter: RateLimiter,
 }
@@ -168,6 +167,7 @@ impl DeviceInner {
             index.insert(secret, p.allowed_ips, endpoint, p.persistent_keepalive);
         }
     }
+    /// 插入peer 需要确认传输层协议
 
     #[inline]
     pub fn insert_peer(&self, cfg: PeerConfig) {

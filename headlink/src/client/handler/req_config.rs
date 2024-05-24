@@ -5,7 +5,7 @@ use sea_orm::*;
 use sea_orm::ActiveValue::Set;
 use crate::client::dispatcher::{ClientRequest, RequestContext};
 use crate::client::handler::{ExecuteResult, ToServerDataHandler};
-use vlink_core::proto::pb::abi::{ReqConfig, RespConfig};
+use vlink_core::proto::pb::abi::{BcPeerEnter, ReqConfig, RespConfig};
 use vlink_core::proto::pb::abi::to_client::ToClientData;
 use crate::client::error::ExecuteError;
 use crate::db::entity::prelude::{PeerActiveModel, PeerColumn, PeerEntity, PeerModel};
@@ -20,6 +20,20 @@ impl ToServerDataHandler for ReqConfig {
             .read_lock().await
             .get(ctx.client_id.pub_key.as_str()).cloned()
             .ok_or(ExecuteError::PeerNotFound)?;
+        let mut peers = vec![];
+        for (k, p) in network.peers.read_lock().await.iter() {
+            if let Some(ip) = p.model.ip.as_ref() {
+                peers.push(BcPeerEnter {
+                    pub_key: k.to_string(),
+                    ip: ip.to_string(),
+                    endpoint_addr: p.online_info.as_ref().map(|e| e.endpoint_addr.clone()).unwrap_or(None),
+                    port: p.online_info.as_ref().map(|e| e.port).unwrap_or(0),
+                    last_con_type: None,
+                    mode: 3,
+                    is_online: p.online_info.is_some(),
+                })
+            }
+        }
 
         // 获取ip
         let addr = match self_peer.model.ip.clone() {
@@ -48,7 +62,7 @@ impl ToServerDataHandler for ReqConfig {
             network: network.cidr.network_address().into(),
             port: self_peer.model.port.unwrap_or(0) as u32,
             ipv6_addr: None,
-            peers: vec![],
+            peers,
         };
         ctx.send_resp(ToClientData::RespConfig(resp)).await?;
         Ok(())

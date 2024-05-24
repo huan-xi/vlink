@@ -13,11 +13,10 @@ use clap::Parser;
 use ip_network::IpNetwork;
 use vlink_core::proto::pb::abi::*;
 use vlink_core::proto::pb::abi::to_client::*;
-use vlink_tun::{DeviceConfig, PeerConfig};
-use vlink_tun::device::config::ArgConfig;
-use vlink_tun::device::peer::cidr::Cidr;
+use vlink_tun::DeviceConfig;
+use vlink_tun::device::config::{ArgConfig};
 use vlinkd::client::{HandshakeParam, VlinkClient};
-use vlinkd::network::config::VlinkNetworkConfig;
+use vlinkd::config::{bc_peer_enter2peer_config, VlinkNetworkConfig};
 use vlinkd::network::{NetworkCtrl, VlinkNetworkManager};
 use vlinkd::storage::Storage;
 use crate::to_server::ToServerData;
@@ -55,7 +54,7 @@ struct Args {
     /// 连接端点地址
     #[arg(short, long)]
     endpoint_addr: Option<String>,
-    /// 监听本地 udp 端口,为空则随机
+    /// 监听本地 udp 端口,服务器设置0 使用此参数
     #[arg(short, long)]
     port: Option<u16>,
 }
@@ -76,9 +75,9 @@ pub async fn main() -> anyhow::Result<()> {
     let (tx, rx) = tokio::sync::mpsc::channel(10);
     let ctrl = NetworkCtrl { sender: tx };
 
-
+    let pub_key = state.secret.base64_pub();
     let client = match VlinkClient::spawn(addr, HandshakeParam {
-        pub_key: state.secret.base64_pub(),
+        pub_key: pub_key.to_string(),
         token: args.token.clone(),
     }, ctrl).await {
         Ok(c) => { c }
@@ -91,7 +90,6 @@ pub async fn main() -> anyhow::Result<()> {
 
     let resp = client.request(ToServerData::ReqConfig(ReqConfig {})).await?;
     info!("resp:{:?}",resp);
-
     let resp_config = if let ToClientData::RespConfig(config) = resp {
         config
     } else {
@@ -100,6 +98,7 @@ pub async fn main() -> anyhow::Result<()> {
 
 
     let network = IpNetwork::new(IpAddr::V4(resp_config.network.into()), resp_config.mask as u8)?;
+
     let mut device_config = DeviceConfig {
         private_key: state.secret.private_key.to_bytes(),
         fwmark: 0,
@@ -114,25 +113,12 @@ pub async fn main() -> anyhow::Result<()> {
         address: resp_config.address.into(),
         network,
     };
+
     for p in resp_config.peers.iter() {
-        let pk = vlink_core::base64::decode_base64(p.pub_key.as_str())?;
-        let mut allowed_ips = HashSet::new();
-        allowed_ips.insert(Cidr::new(p.ip.parse().unwrap(), 32));
-        device_config = device_config.peer(PeerConfig {
-            public_key: pk.try_into().unwrap(),
-            allowed_ips,
-            endpoint: match p.endpoint_addr.clone() {
-                None => { None }
-                Some(addr) => {
-                    //Some(SocketAddr::V4(SocketAddrV4::new(e.endpoint_addr.parse().unwrap(), e.port as u16)))
-                    Some(SocketAddr::new(addr.parse()?, p.port as u16))
-                }
-            },
-            preshared_key: None,
-            lazy: false,
-            no_encrypt: false,
-            persistent_keepalive: None,
-        });
+        if p.is_online {
+            let c = bc_peer_enter2peer_config(p)?;
+            device_config = device_config.peer(c);
+        }
     }
 
     let cfg = VlinkNetworkConfig {
@@ -141,6 +127,8 @@ pub async fn main() -> anyhow::Result<()> {
         arg_config: ArgConfig {
             endpoint_addr: args.endpoint_addr,
         },
+        transports: vec![],
+        stun_servers: vec![],
     };
 
     let network = VlinkNetworkManager::new(client, cfg);
@@ -156,7 +144,6 @@ pub mod test {
     use std::collections::hash_map::Entry;
     use std::sync::Arc;
     use std::time::Duration;
-    use dashmap::{DashMap, Map};
     // use dashmap::mapref::entry::Entry;
     use futures_util::future::join_all;
     use log::info;
@@ -175,7 +162,7 @@ pub mod test {
         let mut tasks = vec![];
         for i in 0..100 {
             let map_c = map.clone();
-            let idc= id.clone();
+            let idc = id.clone();
             tasks.push(async move {
                 match map_c.inter.write().await.entry(idc) {
                     Entry::Occupied(e) => {

@@ -15,7 +15,6 @@ pub struct PeerHandle {
 
 impl PeerHandle {
     /// peer 任务, 定时握手, 处理入口数据, 发送数据
-
     pub fn spawn(token: CancellationToken,
                  peer: Arc<Peer>,
                  inbound: InboundRx,
@@ -107,7 +106,7 @@ async fn tick_inbound(peer: Arc<Peer>, event: InboundEvent)
     }
 }
 
-/// 与peer 握手
+/// 循环与peer 握手
 async fn loop_handshake(token: CancellationToken, peer: Arc<Peer>)
 {
     debug!("Handshake loop for {peer} is UP");
@@ -156,7 +155,7 @@ async fn loop_outbound(token: CancellationToken, peer: Arc<Peer>, mut rx: Outbou
     debug!("Outbound loop for {peer} is DOWN");
 }
 
-
+#[inline]
 async fn tick_outbound(peer: Arc<Peer>, data: Vec<u8>)
 {
     let session = { peer.sessions.read().unwrap().current().clone() };

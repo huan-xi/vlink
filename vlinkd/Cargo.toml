@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+igd = { version = "0.12.1", features = ["aio"] }
+stun-format = { version = "1.0.1", features = ["fmt", "rfc3489"] }
 vlink-core = { path = "../vlink-core" }
 vlink-tun = { path = "../vlink-tun" }
 tokio = { workspace = true }
@@ -18,7 +20,7 @@ serde_json = { workspace = true }
 x25519-dalek = { workspace = true }
 rand_core = "0.6"
 futures = "0"
-futures-util="0"
+futures-util = "0"
 async-bincode = "0.7.1"
 anyhow = "1.0.40"
 winroute = "0.2.0"
@@ -33,3 +35,6 @@ hex = "0.4.3"
 base64 = "0.22.1"
 pnet = "0.34.0"
 ip_network = "0.4"
+socket2 = "0.5.7"
+[dev-dependencies]
+env_logger = "0.11.3"

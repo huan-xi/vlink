@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use vlink_core::proto::pb::abi::PeerEnter;
+use vlink_core::proto::pb::abi::{ConnectionMode, PeerEnter};
 use vlink_core::proto::pb::abi::BcPeerEnter;
 use vlink_core::proto::pb::abi::to_client::ToClientData;
 use crate::client::dispatcher::{ClientRequest, RequestContext};
@@ -32,6 +32,8 @@ impl ToServerDataHandler for PeerEnter {
             endpoint_addr: self.endpoint_addr.clone(),
             port: self.port,
             last_con_type: None,
+            mode: i32::from(ConnectionMode::Bidirectional),
+            is_online: true,
         }), vec![pub_key.clone()]).await;
         Ok(())
     }

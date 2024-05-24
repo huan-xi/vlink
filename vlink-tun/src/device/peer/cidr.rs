@@ -12,22 +12,6 @@ const fn max_mask_for_ip(ip: &IpAddr) -> u8 {
     }
 }
 
-/// Cidr represents a CIDR block.
-///
-/// # Examples
-///
-/// ```
-/// use wiretun::Cidr;
-///
-/// let cidr = "10.10.0.0/24".parse::<Cidr>().unwrap();
-/// assert_eq!(cidr.to_string(), "10.10.0.0/24");
-///
-/// let cidr = "2001:db8::/32".parse::<Cidr>().unwrap();
-/// assert_eq!(cidr.to_string(), "2001:db8::/32");
-///
-/// let cidr = "10.10.10.0/16".parse::<Cidr>().unwrap();
-/// assert_eq!(cidr.to_string(), "10.10.0.0/16");  // truncated
-/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct Cidr(IpNetwork);
 

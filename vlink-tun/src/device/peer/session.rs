@@ -71,13 +71,8 @@ impl Session {
     pub fn encrypt_data(&self, data: &[u8]) -> Result<protocol::TransportData, Error> {
         //加密数据
         let nonce = self.next_nonce();
-        // ChaCha20Poly1305
-        // openssl_sys::SRTP_AEAD_AES_256_GCM
-
-        /*  AeadChacha20Cipher::new(self.sender_key)
-              .encrypt(nonce, data, &[]);*/
         let payload =self.encrypt_cipher.aead_encrypt(nonce, data, &[]).map_err(Error::Noise)?;
-        // let payload = crypto::aead_encrypt(&self.sender_key, nonce, data, &[]).map_err(Error::Noise)?;
+        // let payload=data.to_vec();
         Ok(protocol::TransportData {
             receiver_index: self.receiver_index,
             counter: nonce,

@@ -34,8 +34,10 @@ pub struct ReqHandshake {
     ///访问token,用于身份校验
     #[prost(string, tag="2")]
     pub pub_key: ::prost::alloc::string::String,
-    #[prost(string, tag="3")]
-    pub token: ::prost::alloc::string::String,
+    #[prost(string, optional, tag="3")]
+    pub token: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag="4")]
+    pub sign: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReqConfig {
@@ -137,9 +139,26 @@ pub struct BcPeerEnter {
     //// 上次连接类型
     #[prost(enumeration="ConType", optional, tag="6")]
     pub last_con_type: ::core::option::Option<i32>,
+    //// 连接模式
+    #[prost(enumeration="ConnectionMode", tag="7")]
+    pub mode: i32,
+    #[prost(bool, tag="8")]
+    pub is_online: bool,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum ConType {
     Udp = 0,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ConnectionMode {
+    //// 主动连接
+    Active = 0,
+    //// 被动连接
+    Passive = 1,
+    //// 双向连接
+    Bidirectional = 2,
+    //// 禁止连接
+    None = 3,
 }

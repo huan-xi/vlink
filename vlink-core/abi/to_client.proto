@@ -38,8 +38,21 @@ message RespConfig {
     optional string ipv6_addr = 6;
     repeated BcPeerEnter peers = 10;
 }
+
+
+
 enum ConType {
     CON_TYPE_UDP = 0;
+}
+enum ConnectionMode {
+    /// 主动连接
+    CONNECTION_MODE_ACTIVE = 0;
+    /// 被动连接
+    CONNECTION_MODE_PASSIVE = 1;
+    /// 双向连接
+    CONNECTION_MODE_BIDIRECTIONAL = 2;
+    /// 禁止连接
+    CONNECTION_MODE_NONE = 3;
 }
 
 message BcPeerEnter {
@@ -51,4 +64,7 @@ message BcPeerEnter {
     uint32 port = 5;
     /// 上次连接类型
     optional ConType last_con_type = 6;
+    /// 连接模式
+    ConnectionMode mode = 7;
+    bool is_online = 8;
 }

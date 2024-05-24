@@ -11,13 +11,12 @@ use vlink_core::proto::pb::abi::PeerEnter;
 use vlink_tun::device::Device;
 use vlink_tun::{LocalStaticSecret, PeerConfig, Tun};
 use crate::client::VlinkClient;
-use crate::network::config::VlinkNetworkConfig;
 use vlink_core::proto::pb::abi::*;
-use vlink_tun::device::config::ArgConfig;
+use vlink_tun::device::config::{ArgConfig, TransportConfig, TransportType};
 use vlink_tun::device::peer::cidr::Cidr;
+use crate::config::{bc_peer_enter2peer_config, VlinkNetworkConfig};
+use crate::transport::nat_udp::{NatUdpTransport, NatUdpTransportParam};
 use crate::utils::iface::find_my_ip;
-
-pub mod config;
 
 pub enum NetworkStatus {
     Running,
@@ -70,16 +69,25 @@ impl VlinkNetworkManager {
     }
 }
 
+/// 协商peer与peer 之间的传输层协议
+/// 怎么协商? 怎么确定断开，换协议
+/// 服务端作为被动接受,
+
 impl VlinkNetworkManagerInner {
     /// 阻塞
+
+
     pub async fn start(&self, mut rx: Receiver<NetworkCtrlCmd>) -> anyhow::Result<()> {
         let config = self.config.write().unwrap().take().unwrap();
         //todo 检查网段冲突
         let device = Device::new(config.tun_name, config.device_config).await?;
+        // 启动额外传输层
+        start_transports(&config.transports).await?;
+
         info!("启动接口:{}",device.tun.name());
         //上报设备信息
         send_enter(&self.client, &device, &config.arg_config).await?;
-
+        let event_loop = {};
         //接受控制指令,操作device
         while let Some(cmd) = rx.recv().await {
             info!("接受指令:{:?}",cmd);
@@ -88,37 +96,31 @@ impl VlinkNetworkManagerInner {
                     // device.change_ip();
                 }
                 NetworkCtrlCmd::PeerEnter(e) => {
-                    info!("新增节点:{:?}",e);
-                    let pk = crate::base64Encoding.decode(e.pub_key.as_str())?;
-                    let public_key = pk.as_slice().try_into()?;
-                    let cidr = Cidr::new(e.ip.as_str().parse().unwrap(), 32);
-                    let allowed_ips = HashSet::from([cidr]);
-                    info!("addr:{:?}", e.endpoint_addr);
-                    device.insert_peer(PeerConfig {
-                        public_key,
-                        allowed_ips,
-                        endpoint: match e.endpoint_addr {
-                            None => {None}
-                            Some(addr) => {
-                                //Some(SocketAddr::V4(SocketAddrV4::new(e.endpoint_addr.parse().unwrap(), e.port as u16)))
-                                Some(SocketAddr::new(addr.parse()?, e.port as u16))
-                            }
-                        },
-                        preshared_key: None,
-                        lazy: false,
-                        no_encrypt: false,
-                        persistent_keepalive: None,
-                    });
-                    // device.add_peer();
+                    info!("新增节点:ip:{},endpoint_addr:{:?}",e.ip,e.endpoint_addr);
+                    let c = bc_peer_enter2peer_config(&e)?;
+                    device.insert_peer(c);
                 }
                 NetworkCtrlCmd::Reenter => {
-                    send_enter(&self.client, &device,&config.arg_config).await?;
+                    send_enter(&self.client, &device, &config.arg_config).await?;
                 }
             }
         }
 
         Ok(())
     }
+}
+
+
+async fn start_transports(trans: &Vec<TransportConfig>) -> anyhow::Result<()>{
+    for cfg in trans.iter() {
+        match cfg.trans_type{
+            TransportType::NatUdp => {
+                let param: NatUdpTransportParam = serde_json::from_str(&cfg.params)?;
+                NatUdpTransport::new(param).await?;
+            }
+        }
+    }
+    Ok(())
 }
 
 

@@ -156,6 +156,7 @@ impl PeerMonitor {
 
     #[inline]
     pub fn can_handshake(&self) -> bool {
+
         if self.traffic.tx_messages.load(Ordering::Relaxed) >= REKEY_AFTER_MESSAGES {
             return true;
         }
@@ -165,8 +166,7 @@ impl PeerMonitor {
             return false;
         }
 
-        if self.handshake.attempt_before.to_std()
-            < self.handshake.last_complete_at.to_std() + REKEY_AFTER_TIME
+        if self.handshake.attempt_before.to_std() < self.handshake.last_complete_at.to_std() + REKEY_AFTER_TIME
         {
             self.handshake.reset_attempt();
         }
