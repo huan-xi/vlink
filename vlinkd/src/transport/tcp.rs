@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 
+/// 公网tcp 传输
 /// tcp 传输协议
 #[derive(Clone, Debug)]
 pub struct UdpTransport {

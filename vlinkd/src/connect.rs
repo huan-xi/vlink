@@ -14,7 +14,7 @@ use vlink_core::proto::pb::abi::ToClient;
 use vlink_core::proto::pb::abi::to_client::ToClientData;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use bytes::{Bytes, BytesMut};
-use log::{error, info};
+use log::{debug, error, info};
 use tokio::select;
 use tokio::time::timeout;
 
@@ -28,6 +28,7 @@ pub struct ClientConnect {
     timeout: Duration,
     is_connected: Arc<AtomicBool>,
 }
+
 
 pub struct ClientRequest {}
 

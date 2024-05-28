@@ -3,34 +3,43 @@ use std::net::SocketAddr;
 use std::ops::Deref;
 use std::sync::Arc;
 use anyhow::anyhow;
-use log::debug;
+use log::{debug, info};
 use sea_orm::{DatabaseConnection, EntityTrait};
-use crate::db::entity::prelude::{NetworkEntity, PeerColumn, PeerEntity, PeerModel};
+use crate::db::entity::prelude::{ConfigActiveModel, ConfigEntity, NetworkEntity, PeerColumn, PeerEntity, PeerModel};
 use crate::network::{VlinkNetwork, VlinkNetworkInner};
 use crate::client::ClientConnect;
 use crate::peer::VlinkPeer;
 use sea_orm::*;
+use sea_orm::ActiveValue::Set;
 use vlink_core::rw_map::RwMap;
+use vlink_core::secret::VlinkStaticSecret;
+use crate::db::entity::config::{Model, SECRET_KEY};
+
+#[derive(Clone)]
+pub struct ServerInfo {
+    pub version: String,
+    pub secret: VlinkStaticSecret,
+}
 
 pub struct ServerInner {
-    clients: RwMap<SocketAddr, ClientConnect>,
+    pub clients: RwMap<SocketAddr, ClientConnect>,
     // pub peers: Peers,
     conn: DatabaseConnection,
     pub networks: RwMap<i64, VlinkNetwork>,
+    pub info: ServerInfo,
     // pub networks: DashMap<i64, VlinkNetwork>,
 }
-
 
 
 #[derive(Clone, Default)]
 pub struct Peers {
     // peers: Arc<DashMap<String, VlinkPeer>>,
-    peers: RwMap<String, VlinkPeer>,
+    pub peers: RwMap<String, VlinkPeer>,
 }
 
 impl Peers {
     pub fn new(peers: Vec<VlinkPeer>) -> Peers {
-        let peers:Vec<(String,VlinkPeer)> = peers.into_iter()
+        let peers: Vec<(String, VlinkPeer)> = peers.into_iter()
             .map(|p| (p.model.pub_key.clone(), p))
             .collect();
         Peers {
@@ -57,8 +66,8 @@ impl ServerInner {
     pub fn conn(&self) -> &DatabaseConnection {
         &self.conn
     }
-    pub fn insert_client(&self, client: ClientConnect) {
-        self.clients.insert(client.addr.clone(), client);
+    pub async fn insert_client(&self, client: ClientConnect) {
+        self.clients.insert(client.addr.clone(), client).await;
     }
     pub async fn remove_client(&self, addr: &SocketAddr) -> Option<ClientConnect> {
         let client = self.clients.remove(addr).await;
@@ -73,7 +82,6 @@ impl ServerInner {
 
 
     pub async fn get_network(&self, network_id: i64) -> anyhow::Result<VlinkNetwork> {
-
         Ok(match self.networks.write_lock().await.entry(network_id) {
             Entry::Occupied(e) => { e.get().clone() }
             Entry::Vacant(e) => {
@@ -113,11 +121,40 @@ pub struct VlinkServer {
 }
 
 impl VlinkServer {
-    pub fn new(conn: DatabaseConnection) -> VlinkServer {
-        VlinkServer {
-            inner: Arc::new(ServerInner { clients: Default::default(), conn,
-                networks: Default::default() })
-        }
+    pub async fn new(conn: DatabaseConnection) -> anyhow::Result<VlinkServer> {
+        // 初始化秘钥
+        let secret = match ConfigEntity::find_by_id(SECRET_KEY).one(&conn)
+            .await? {
+            None => {
+                //生成秘钥插入
+                let secret = VlinkStaticSecret::generate();
+                let secret_str = serde_json::to_string(&secret)?;
+                ConfigEntity::insert(ConfigActiveModel {
+                    key: Set(SECRET_KEY.to_string()),
+                    value: Set(secret_str),
+                }).exec(&conn).await?;
+                secret
+            }
+            Some(e) => {
+                //e.value
+                let s: VlinkStaticSecret = serde_json::from_str(e.value.as_str())?;
+                s
+            }
+        };
+        info!("服务端公钥:{}",secret.base64_pub());
+
+
+        Ok(VlinkServer {
+            inner: Arc::new(ServerInner {
+                clients: Default::default(),
+                conn,
+                networks: Default::default(),
+                info: ServerInfo {
+                    version: "1.0.0".to_string(),
+                    secret,
+                },
+            })
+        })
     }
 }
 

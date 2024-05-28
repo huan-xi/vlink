@@ -10,3 +10,9 @@ pub use super::network_token::Entity as NetworkTokenEntity;
 pub use super::network_token::Column as NetworkTokenColumn;
 
 pub use super::network::Entity as NetworkEntity;
+pub use super::network::ActiveModel as NetworkActiveModel;
+
+
+
+pub use super::config::Entity as ConfigEntity;
+pub use super::config::ActiveModel as ConfigActiveModel;

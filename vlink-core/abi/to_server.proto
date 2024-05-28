@@ -23,7 +23,7 @@ message ReqHandshake {
     //访问token,用于身份校验
     string pub_key = 2;
     optional string token = 3;
-    optional string sign = 4;
+    string sign = 4;
 
 }
 message ReqConfig {

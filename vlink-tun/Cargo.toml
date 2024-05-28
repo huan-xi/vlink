@@ -30,6 +30,7 @@ ip_network = "0.4"
 ip_network_table = "0.2"
 base64 = "0.22.0"
 log = "0.4.21"
+crypto_box = { workspace = true }
 #openssl-sys = "0.9.102"
 [dev-dependencies]
 #tracing-subscriber = { version = "0.3", features = ["env-filter"] }

@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+axum.workspace = true
+derive-new = "0.6.0"
 igd = { version = "0.12.1", features = ["aio"] }
 stun-format = { version = "1.0.1", features = ["fmt", "rfc3489"] }
 vlink-core = { path = "../vlink-core" }

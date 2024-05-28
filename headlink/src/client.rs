@@ -29,7 +29,7 @@ use futures_util::future::join_all;
 use prost::Message;
 use sea_orm::{EntityTrait, QueryFilter};
 use tokio::time::timeout;
-use crate::db::entity::prelude::{NetworkEntity, NetworkTokenColumn, NetworkTokenEntity};
+use crate::db::entity::prelude::{NetworkEntity, NetworkTokenColumn, NetworkTokenEntity, PeerEntity};
 use crate::client::dispatcher::{Dispatcher, ClientRequest, RequestContext};
 use crate::peer::VlinkPeer;
 
@@ -58,6 +58,9 @@ impl ClientConnect {
     }
     pub async fn close(&self) {
         self.sender.closed().await
+    }
+    pub fn client_id(&self) -> Option<ClientId> {
+        self.client_id.get().cloned()
     }
 }
 
@@ -189,6 +192,12 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
 //<T: AsyncRead + AsyncWrite>(stream: T) where <T as Stream>::Item: Vec<u8>
 /// 握手成功返回pub_key
 async fn await_handshake(server: VlinkServer, secs: u64, client: ClientConnect, mut rx: broadcast::Receiver<ToServer>) -> anyhow::Result<ClientId> {
+    let info = server.info.clone();
+    client.send(None, ToClientData::RespServerInfo(RespServerInfo {
+        version: info.version,
+        key: info.secret.base64_pub(),
+        desc: None,
+    })).await?;
     timeout(Duration::from_secs(secs), async {
         if let Ok(data) = rx.recv().await {
             let id = data.id;
@@ -205,26 +214,42 @@ async fn handshake0(server: &VlinkServer, client: &ClientConnect, data: ToServer
     if let Some(ToServerData::Handshake(data)) = data.to_server_data {
         debug!("握手包数据:{:?}",data);
         let pub_key = data.pub_key.clone();
-        /*  if let Some(_) = server.peers.get(pub_key.as_str()) {
-              let err = format!("peer已连接,pub({})", pub_key.as_str());
-              return Err(anyhow!(err));
-          }*/
-        let token = NetworkTokenEntity::find()
-            .filter(NetworkTokenColumn::Token.eq(data.token.unwrap().as_str()))
-            .one(server.conn())
-            .await?
-            .ok_or(anyhow!("token不存在"))?;
-        if token.disabled {
-            return Err(anyhow!("token已禁用"));
-        }
+
+        let network_id = if let Some(token) = data.token.clone() {
+            let token = NetworkTokenEntity::find()
+                .filter(NetworkTokenColumn::Token.eq(data.token.unwrap().as_str()))
+                .one(server.conn())
+                .await?
+                .ok_or(anyhow!("token不存在"))?;
+            if token.disabled {
+                return Err(anyhow!("token已禁用"));
+            }
+            let network = server.get_network(token.network_id).await?;
+            network.network_id
+        } else {
+            //peer取
+            let peer = PeerEntity::find_by_id(pub_key.as_str())
+                .one(server.conn())
+                .await?
+                .ok_or(anyhow!("peer 未注册"))?;
+            peer.network_id
+        };
+        let pub_key_c = pub_key.clone();
         // 从server中 取网络
-        let network = server.get_network(token.network_id).await?;
         let client_id = ClientId {
             pub_key,
-            network_id: network.network_id,
+            network_id,
         };
         client.client_id.set(client_id.clone()).map_err(|e| anyhow!("set error"))?;
         //发送握手成功
+        let network = server.get_network(network_id).await?;
+
+        if let Some(e) = network.peers.read_lock().await.get(pub_key_c.as_str()) {
+            if e.is_online() {
+                let err = format!("peer已连接,pub({})", pub_key_c.as_str());
+                return Err(anyhow!(err));
+            }
+        }
         // client.send(Some(id), ToClientData::RespHandshake(RespHandshake { success: true, msg: None })).await?;
         return Ok(client_id);
     } else {

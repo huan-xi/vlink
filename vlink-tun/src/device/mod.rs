@@ -164,11 +164,10 @@ impl DeviceInner {
                 secret.set_psk(psk);
             }
             let endpoint = p.endpoint.map(|addr| settings.inbound.endpoint_for(addr));
-            index.insert(secret, p.allowed_ips, endpoint, p.persistent_keepalive);
+            index.insert(secret, p.allowed_ips, endpoint, p.persistent_keepalive, p.is_online, p.ip_addr);
         }
     }
     /// 插入peer 需要确认传输层协议
-
     #[inline]
     pub fn insert_peer(&self, cfg: PeerConfig) {
         let settings = self.settings.lock().unwrap();
@@ -178,7 +177,8 @@ impl DeviceInner {
             secret.set_psk(psk);
         }
         let endpoint = cfg.endpoint.map(|addr| settings.inbound.endpoint_for(addr));
-        index.insert(secret, cfg.allowed_ips, endpoint, cfg.persistent_keepalive);
+        index.insert(secret, cfg.allowed_ips, endpoint, cfg.persistent_keepalive, cfg.is_online,cfg.ip_addr);
+
     }
 }
 

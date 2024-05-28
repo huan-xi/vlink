@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
+use log::debug;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use crate::device::endpoint::Endpoint;
@@ -26,19 +27,6 @@ pub(crate) struct PeerList {
     ips: CidrTable<Arc<Peer>>,
     peers: HashMap<[u8; 32], PeerEntry>,
 }
-
-
-// pub(crate) struct PeerIndex<T, I>
-//     where
-//         T: Tun + 'static,
-//         I: Transport,
-// {
-//     token: CancellationToken,
-//     tun: T,
-//     sessions: SessionIndex,
-
-//     ips: CidrTable<Arc<Peer<T, I>>>,
-// }
 
 impl PeerList {
     pub fn new(token: CancellationToken, tun: NativeTun) -> Self {
@@ -92,14 +80,17 @@ impl PeerList {
         self.ips.clear();
         self.sessions.clear();
     }
-
+    /// 插入peer
     pub fn insert(
         &mut self,
         secret: PeerStaticSecret,
         allowed_ips: HashSet<Cidr>,
         endpoint: Option<Endpoint>,
         persistent_keepalive_interval: Option<Duration>,
+        is_online: bool,
+        ip_addr: String,
     ) -> Arc<Peer> {
+        debug!("新增节点:{:?}",allowed_ips);
         let entry = self
             .peers
             .entry(secret.public_key().to_bytes())
@@ -115,6 +106,8 @@ impl PeerList {
                     inbound_tx,
                     outbound_tx,
                     persistent_keepalive_interval,
+                    is_online,
+                    ip_addr,
                 ));
                 let handle = PeerHandle::spawn(
                     self.token.child_token(),

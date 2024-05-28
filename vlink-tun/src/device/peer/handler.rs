@@ -111,7 +111,7 @@ async fn loop_handshake(token: CancellationToken, peer: Arc<Peer>)
 {
     debug!("Handshake loop for {peer} is UP");
     while !token.is_cancelled() {
-        if peer.monitor.can_handshake() {
+        if *peer.is_online.lock().unwrap() && peer.monitor.can_handshake() {
             info!("initiating handshake");
             let packet = {
                 let (next, packet) = peer.handshake.write().unwrap().initiate();
@@ -159,7 +159,10 @@ async fn loop_outbound(token: CancellationToken, peer: Arc<Peer>, mut rx: Outbou
 async fn tick_outbound(peer: Arc<Peer>, data: Vec<u8>)
 {
     let session = { peer.sessions.read().unwrap().current().clone() };
-    let session = if let Some(s) = session { s } else { return; };
+    let session = if let Some(s) = session { s } else {
+        debug!("no session to send outbound packet to {peer}");
+        return;
+    };
 
     match session.encrypt_data(&data) {
         Ok(packet) => {

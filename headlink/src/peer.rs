@@ -22,7 +22,11 @@ pub struct VlinkPeer {
     pub port: u32,
     pub online: bool,*/
 }
-
+impl VlinkPeer{
+    pub fn is_online(&self) -> bool {
+        self.online_info.is_some()
+    }
+}
 impl From<PeerModel> for VlinkPeer {
     fn from(value: PeerModel) -> Self {
         Self {

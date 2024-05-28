@@ -36,8 +36,8 @@ pub struct ReqHandshake {
     pub pub_key: ::prost::alloc::string::String,
     #[prost(string, optional, tag="3")]
     pub token: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag="4")]
-    pub sign: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag="4")]
+    pub sign: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReqConfig {
@@ -71,7 +71,7 @@ pub struct ToClient {
     /// 通信id
     #[prost(uint64, tag="1")]
     pub id: u64,
-    #[prost(oneof="to_client::ToClientData", tags="2, 3, 4, 5")]
+    #[prost(oneof="to_client::ToClientData", tags="2, 3, 4, 5, 6")]
     pub to_client_data: ::core::option::Option<to_client::ToClientData>,
 }
 /// Nested message and enum types in `ToClient`.
@@ -81,10 +81,12 @@ pub mod to_client {
         #[prost(message, tag="2")]
         Error(super::ToClientError),
         #[prost(message, tag="3")]
-        RespHandshake(super::RespHandshake),
+        RespServerInfo(super::RespServerInfo),
         #[prost(message, tag="4")]
-        RespConfig(super::RespConfig),
+        RespHandshake(super::RespHandshake),
         #[prost(message, tag="5")]
+        RespConfig(super::RespConfig),
+        #[prost(message, tag="6")]
         PeerEnter(super::BcPeerEnter),
     }
 }
@@ -94,6 +96,16 @@ pub struct ToClientError {
     pub code: i32,
     #[prost(string, tag="2")]
     pub msg: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RespServerInfo {
+    #[prost(string, tag="1")]
+    pub version: ::prost::alloc::string::String,
+    /// 服务端公钥
+    #[prost(string, tag="2")]
+    pub key: ::prost::alloc::string::String,
+    #[prost(string, optional, tag="3")]
+    pub desc: ::core::option::Option<::prost::alloc::string::String>,
 }
 //// 握手响应
 #[derive(Clone, PartialEq, ::prost::Message)]

@@ -3,8 +3,6 @@
 use clap::Parser;
 use log::{error, info};
 use tokio::net::TcpListener;
-
-use futures::{AsyncReadExt, FutureExt, select, SinkExt, StreamExt};
 use headlink::db::init::open_db;
 use headlink::server;
 use headlink::client::ClientStream;
@@ -42,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
 
     //广播器
     // let (mut tx, mut rx) = broadcast::channel(16);
-    let server = server::VlinkServer::new(conn);
+    let server = server::VlinkServer::new(conn).await?;
     let server_c = server.clone();
     loop {
         info!("start accept");
@@ -51,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
         let (stream, even_loop) = ClientStream::new(stream, addr.clone(), server_c.clone());
         let server_cc = server_c.clone();
         tokio::spawn(async move {
-            server_cc.insert_client(stream.client.clone());
+            server_cc.insert_client(stream.client.clone()).await;
             if let Err(e) = even_loop.await {
                 error!("Client Process error {:?}",e );
             }

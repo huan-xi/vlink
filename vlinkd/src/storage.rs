@@ -5,7 +5,8 @@ use log::info;
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use crate::config::{PeerStaticSecret, StorageConfig};
+use vlink_core::secret::VlinkStaticSecret;
+use crate::config::{ StorageConfig};
 
 pub struct Storage {
     pub path: Option<String>,
@@ -40,7 +41,7 @@ impl Storage {
                 let mut file = File::create(key.as_path()).await?;
                 // 生成秘钥对写入
                 let config = StorageConfig {
-                    secret: PeerStaticSecret::generate(),
+                    secret: VlinkStaticSecret::generate(),
                 };
                 let txt = serde_json::to_string(&config)?;
                 file.write_all(txt.as_bytes()).await?;

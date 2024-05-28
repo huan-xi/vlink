@@ -11,7 +11,7 @@ use std::sync::{Mutex, RwLock};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use log::{debug, warn};
-use crate::{NativeTun, PeerStaticSecret,  Tun};
+use crate::{NativeTun, PeerStaticSecret, Tun};
 use crate::noise::handshake::IncomingInitiation;
 use crate::noise::{crypto, protocol};
 use crate::device::peer::handshake::Handshake;
@@ -55,6 +55,7 @@ pub(crate) type OutboundRx = mpsc::Receiver<OutboundEvent>;
 
 pub struct Peer {
     tun: NativeTun,
+    is_online: Mutex<bool>,
     monitor: PeerMonitor,
     handshake: RwLock<Handshake>,
     sessions: RwLock<ActiveSession>,
@@ -62,6 +63,7 @@ pub struct Peer {
     endpoint: RwLock<Option<Endpoint>>,
     inbound: InboundTx,
     outbound: OutboundTx,
+    ip_addr: String,
 }
 
 impl Peer {
@@ -73,6 +75,8 @@ impl Peer {
         inbound: InboundTx,
         outbound: OutboundTx,
         persitent_keepalive_interval: Option<Duration>,
+        is_online: bool,
+        ip_addr: String,
     ) -> Self {
         let handshake = RwLock::new(Handshake::new(secret.clone(), session_index.clone()));
         let sessions = RwLock::new(ActiveSession::new(session_index));
@@ -86,6 +90,8 @@ impl Peer {
             outbound,
             endpoint,
             monitor,
+            is_online: Mutex::new(is_online),
+            ip_addr,
         }
     }
 
@@ -132,17 +138,16 @@ impl Peer {
         }
     }
     #[inline]
-    pub fn update_endpoint(&self, endpoint:Endpoint ) {
+    pub fn update_endpoint(&self, endpoint: Endpoint) {
         let mut guard = self.endpoint.write().unwrap();
         let _ = guard.insert(endpoint);
     }
-
 }
 
 impl Display for Peer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         //             "Peer({})",
 //             crypto::encode_to_hex(self.secret.public_key().as_bytes())
-        write!(f, "Peer()")
+        write!(f, "Peer({})", self.ip_addr)
     }
 }

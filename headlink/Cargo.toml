@@ -37,4 +37,5 @@ snowdon = { version = "^0.2", features = ["serde"] }
 futures-util = "0.3.30"
 ip_network = { features = ["serde", "postgres"] }
 ipnetwork = { features = ["serde"] }
+derive-new = "0.6.0"
 [features]

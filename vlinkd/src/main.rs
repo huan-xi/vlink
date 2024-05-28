@@ -1,25 +1,18 @@
+use clap::Parser;
+use futures::Stream;
+use futures_util::{SinkExt, StreamExt, TryStreamExt};
+use log::{error, info};
+use prost::Message;
+
+use vlink_tun::device::config::ArgConfig;
+use vlinkd::api::start_http_server;
+use vlinkd::client::VlinkClient;
+use vlinkd::network::{VlinkNetworkManager};
+use vlinkd::network::ctrl::NetworkCtrl;
+use vlinkd::storage::Storage;
+
 mod test_route;
 
-
-use std::collections::HashSet;
-use std::net::{IpAddr, SocketAddr, SocketAddrV4};
-use anyhow::anyhow;
-use futures::Stream;
-
-use futures_util::{SinkExt, StreamExt, TryStreamExt};
-use log::{debug, error, info};
-use prost::Message;
-use clap::Parser;
-use ip_network::IpNetwork;
-use vlink_core::proto::pb::abi::*;
-use vlink_core::proto::pb::abi::to_client::*;
-use vlink_tun::DeviceConfig;
-use vlink_tun::device::config::{ArgConfig};
-use vlinkd::client::{HandshakeParam, VlinkClient};
-use vlinkd::config::{bc_peer_enter2peer_config, VlinkNetworkConfig};
-use vlinkd::network::{NetworkCtrl, VlinkNetworkManager};
-use vlinkd::storage::Storage;
-use crate::to_server::ToServerData;
 
 /// 一个客户端守护进程
 /// 一个vlinkd 管理一个tun接口,如果需要接入两个vlink 网络请启动两个进程
@@ -50,13 +43,16 @@ struct Args {
     hostname: Option<String>,
     /// 服务器连接 token
     #[arg(short, long)]
-    token: String,
+    token: Option<String>,
     /// 连接端点地址
     #[arg(short, long)]
     endpoint_addr: Option<String>,
     /// 监听本地 udp 端口,服务器设置0 使用此参数
     #[arg(short, long)]
     port: Option<u16>,
+    /// http 控制监听地址
+    #[arg(short, long)]
+    listen_addr: Option<String>,
 }
 
 #[tokio::main]
@@ -69,86 +65,37 @@ pub async fn main() -> anyhow::Result<()> {
     }.load_config().await?;
 
     info!("state:{:?}",state);
-
-    let addr = args.server.as_str();
-
-    let (tx, rx) = tokio::sync::mpsc::channel(10);
-    let ctrl = NetworkCtrl { sender: tx };
-
+    let server_addr = args.server.as_str();
     let pub_key = state.secret.base64_pub();
-    let client = match VlinkClient::spawn(addr, HandshakeParam {
-        pub_key: pub_key.to_string(),
-        token: args.token.clone(),
-    }, ctrl).await {
-        Ok(c) => { c }
-        Err(e) => {
-            error!("连接服务器失败:{}",e);
-            return Ok(());
-        }
-    };
+    // 用于客户端去控制网络
+    let (ctrl, rx) = NetworkCtrl::new();
+    let secret = state.secret.clone();
+    let client = VlinkClient::new(server_addr.to_string(), secret.clone(), ctrl.clone());
+    client.spawn().await?;
+    //启动http 控制,ctrl
+    start_http_server(args.listen_addr.clone(), ctrl.clone()).await?;
 
+    let mut network = VlinkNetworkManager::new(client, rx, secret.clone());
+    network.start(ArgConfig {
+        endpoint_addr: args.endpoint_addr,
+        port: args.port,
+    }).await?;
+    //http ctrl server
 
-    let resp = client.request(ToServerData::ReqConfig(ReqConfig {})).await?;
-    info!("resp:{:?}",resp);
-    let resp_config = if let ToClientData::RespConfig(config) = resp {
-        config
-    } else {
-        return Err(anyhow!("响应数据错误错误"));
-    };
-
-
-    let network = IpNetwork::new(IpAddr::V4(resp_config.network.into()), resp_config.mask as u8)?;
-
-    let mut device_config = DeviceConfig {
-        private_key: state.secret.private_key.to_bytes(),
-        fwmark: 0,
-        port: {
-            if resp_config.port > 0 {
-                resp_config.port as u16
-            } else {
-                args.port.unwrap_or(0)
-            }
-        },
-        peers: Default::default(),
-        address: resp_config.address.into(),
-        network,
-    };
-
-    for p in resp_config.peers.iter() {
-        if p.is_online {
-            let c = bc_peer_enter2peer_config(p)?;
-            device_config = device_config.peer(c);
-        }
-    }
-
-    let cfg = VlinkNetworkConfig {
-        tun_name: None,
-        device_config,
-        arg_config: ArgConfig {
-            endpoint_addr: args.endpoint_addr,
-        },
-        transports: vec![],
-        stun_servers: vec![],
-    };
-
-    let network = VlinkNetworkManager::new(client, cfg);
-    network.start(rx).await?;
-
-
-    error!("服务器断开");
+    error!("客户端关闭");
     Ok(())
 }
 
 #[cfg(test)]
 pub mod test {
     use std::collections::hash_map::Entry;
-    use std::sync::Arc;
     use std::time::Duration;
+
     // use dashmap::mapref::entry::Entry;
     use futures_util::future::join_all;
     use log::info;
-    use vlink_core::rw_map::RwMap;
 
+    use vlink_core::rw_map::RwMap;
 
     #[tokio::test]
     pub async fn test() {

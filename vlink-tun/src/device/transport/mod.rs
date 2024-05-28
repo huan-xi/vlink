@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use crate::device::endpoint::Endpoint;
 use crate::device::transport::udp::UdpTransport;
 
+/// 标准的udp 协议
 pub mod udp;
 
 
@@ -39,14 +40,12 @@ impl Transport for TransportDispatcher {
 
     async fn recv_from(&mut self) -> Result<(Endpoint, Vec<u8>), Error> {
         match self { TransportDispatcher::Udp(udp) => { udp.recv_from().await } }
-
     }
 }
 
 
 #[async_trait]
 pub trait Transport: Sync + Send + Unpin + Display + 'static + Debug {
-
     /// Returns the port that the endpoint is bound to.
     fn port(&self) -> u16;
 

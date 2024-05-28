@@ -16,11 +16,13 @@ pub struct PeerConfig {
     pub preshared_key: Option<[u8; 32]>,
     /// 延迟连接
     pub lazy: bool,
+    pub is_online: bool,
     /// 不加密
     /// 不加密无法与标准wireguard互通
     pub no_encrypt: bool,
     /// 连接时间
     pub persistent_keepalive: Option<Duration>,
+    pub ip_addr: String,
 }
 
 impl PeerConfig {}
@@ -40,6 +42,7 @@ pub struct DeviceConfig {
 #[derive(Debug, Clone)]
 pub struct ArgConfig {
     pub endpoint_addr: Option<String>,
+    pub port: Option<u16>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

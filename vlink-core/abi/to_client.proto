@@ -9,14 +9,21 @@ message ToClient {
     uint64 id = 1;
     oneof to_client_data {
         ToClientError error = 2;
-        RespHandshake resp_handshake = 3;
-        RespConfig resp_config = 4;
-        BcPeerEnter peer_enter = 5;
+        RespServerInfo resp_server_info = 3;
+        RespHandshake resp_handshake = 4;
+        RespConfig resp_config = 5;
+        BcPeerEnter peer_enter = 6;
     }
 }
 message ToClientError {
     int32 code = 1;
     string msg = 2;
+}
+message RespServerInfo {
+    string version = 1;
+    // 服务端公钥
+    string key = 2;
+    optional string desc = 3;
 }
 
 /// 握手响应

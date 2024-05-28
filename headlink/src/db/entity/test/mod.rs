@@ -2,4 +2,4 @@
 
 pub mod prelude;
 
-pub mod network_token;
+pub mod config;
