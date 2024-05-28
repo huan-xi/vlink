@@ -37,7 +37,6 @@ pub async fn request_for_config(client: Arc<VlinkClient>, private_key: [u8; 32],
         address: resp_config.address.into(),
         network,
     };
-
     for p in resp_config.peers.iter() {
         let c = bc_peer_enter2peer_config(p)?;
         device_config = device_config.peer(c);

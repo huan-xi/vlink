@@ -5,18 +5,18 @@ use ip_network::{IpNetwork, Ipv4Network};
 use tokio_util::sync::CancellationToken;
 use crate::{LocalStaticSecret, Tun};
 use crate::errors::Error;
-use tokio::sync::{Mutex as AsyncMutex};
+use tokio::sync::{mpsc, Mutex as AsyncMutex};
 use log::debug;
 use crate::noise::handshake::Cookie;
 use crate::device::config::{DeviceConfig, PeerConfig};
 use crate::device::handle::DeviceHandle;
-use crate::device::inbound::Inbound;
+use crate::device::inbound::{Inbound, InboundResult};
 use crate::device::peer::cidr::Cidr;
 use crate::device::peer::Peer;
 use crate::device::peer::peers::PeerList;
 use crate::device::peer::session::Session;
 use crate::device::rate_limiter::RateLimiter;
-use crate::device::transport::{Transport, TransportDispatcher};
+use crate::device::transport::{Transport, TransportDispatcher, TransportWrapper};
 use crate::device::transport::udp::UdpTransport;
 use crate::router::{Router};
 use crate::tun::IFace;
@@ -54,6 +54,9 @@ impl Settings
             cookie,
             inbound,
         }
+    }
+    pub fn secret_and_cookie(&self) -> (LocalStaticSecret, Arc<Cookie>) {
+        (self.secret.clone(), self.cookie.clone())
     }
 
     #[inline(always)]
@@ -97,11 +100,9 @@ impl Device {
 
         // wiretun::Device::with_udp(tun, cfg).await
         let token = CancellationToken::new();
-        let transport = UdpTransport::bind(Ipv4Addr::UNSPECIFIED, Ipv6Addr::UNSPECIFIED, cfg.port).await?;
-        let port = transport.port();
-        let inbound = Inbound {
-            transports: vec![TransportDispatcher::Udp(transport)],
-        };
+        let (tx, rx) = mpsc::channel::<InboundResult>(1024);
+        let (port,socket_info) = UdpTransport::spawn(token.child_token(), cfg.port, tx.clone()).await?;
+        let inbound = Inbound::new(tx.clone(), rx,socket_info);
         let settings = Mutex::new(Settings::new(inbound, cfg.private_key, cfg.fwmark));
         let peers = Mutex::new(PeerList::new(token.child_token(), tun.clone()));
         let inner = Arc::new(DeviceInner {
@@ -163,6 +164,7 @@ impl DeviceInner {
             if let Some(psk) = p.preshared_key {
                 secret.set_psk(psk);
             }
+
             let endpoint = p.endpoint.map(|addr| settings.inbound.endpoint_for(addr));
             index.insert(secret, p.allowed_ips, endpoint, p.persistent_keepalive, p.is_online, p.ip_addr);
         }
@@ -177,8 +179,7 @@ impl DeviceInner {
             secret.set_psk(psk);
         }
         let endpoint = cfg.endpoint.map(|addr| settings.inbound.endpoint_for(addr));
-        index.insert(secret, cfg.allowed_ips, endpoint, cfg.persistent_keepalive, cfg.is_online,cfg.ip_addr);
-
+        index.insert(secret, cfg.allowed_ips, endpoint, cfg.persistent_keepalive, cfg.is_online, cfg.ip_addr);
     }
 }
 

@@ -2,12 +2,12 @@ pub mod ctrl;
 pub mod types;
 
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc};
 use std::time::Duration;
 
 use base64::Engine;
 use log::info;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::sync::mpsc::Receiver;
 use tokio::time::timeout;
 
@@ -21,6 +21,7 @@ use vlink_tun::Tun;
 
 use crate::client::VlinkClient;
 use crate::config::VlinkNetworkConfig;
+use crate::handler;
 use crate::handler::first_connected::request_for_config;
 use crate::network::ctrl::NetworkCtrlCmd;
 use crate::transport::nat_udp::{NatUdpTransport, NatUdpTransportParam};
@@ -29,7 +30,6 @@ pub enum NetworkStatus {
     Running,
     Stop,
 }
-
 
 
 #[derive(Clone)]
@@ -42,6 +42,7 @@ pub struct VlinkNetworkManagerInner {
     client: Arc<VlinkClient>,
     rx: Arc<Mutex<Receiver<NetworkCtrlCmd>>>,
     secret: VlinkStaticSecret,
+    device: Arc<RwLock<Option<Device>>>,
     // status: RwLock<NetworkStatus>,
 }
 
@@ -54,6 +55,7 @@ impl VlinkNetworkManager {
                 client: Arc::new(client),
                 rx: Arc::new(Mutex::new(rx)),
                 secret,
+                device: Arc::new(Default::default()),
             }),
         }
     }
@@ -64,9 +66,7 @@ impl VlinkNetworkManager {
 /// 服务端作为被动接受,
 
 impl VlinkNetworkManagerInner {
-    /// 阻塞
-
-
+    /// 启动网络管理器
     pub async fn start(&self, args: ArgConfig) -> anyhow::Result<()> {
         //启动设备,本地文件读取配置信息,等待首次连接配置
         let rxc = self.rx.clone();
@@ -89,11 +89,13 @@ impl VlinkNetworkManagerInner {
             }
         };
         if let Some(cfg) = config {
-            start_device(cfg).await?;
+            self.device.write().await.replace(start_device(cfg).await?);
         }
 
 
         //接受控制指令,操作device
+        let client_c = self.client.clone();
+        let device_c = self.device.clone();
         while let Some(cmd) = self.rx.lock().await.recv().await {
             info!("接受指令:{:?}",cmd);
             match cmd {
@@ -106,7 +108,7 @@ impl VlinkNetworkManagerInner {
                     // device.insert_peer(c);
                 }
                 NetworkCtrlCmd::Connected => {
-
+                    handler::connected::handler_connected(client_c.clone(), device_c.clone(), &args).await?;
                     // send_enter(&self.client, &device, &config.arg_config).await?;
                 }
                 NetworkCtrlCmd::FirstConnected => {
@@ -135,10 +137,10 @@ impl VlinkNetworkManagerInner {
     }
 }
 
-async fn start_device(config: VlinkNetworkConfig) -> anyhow::Result<()> {
+async fn start_device(config: VlinkNetworkConfig) -> anyhow::Result<Device> {
     let device = Device::new(config.tun_name, config.device_config).await?;
 
-    Ok(())
+    Ok(device)
 }
 
 
@@ -151,18 +153,6 @@ async fn start_transports(trans: &Vec<TransportConfig>) -> anyhow::Result<()> {
             }
         }
     }
-    Ok(())
-}
-
-
-/// 进入网络信息
-/// 本机ip+udp port
-pub async fn send_enter(client: &VlinkClient, device: &Device, arg: &ArgConfig) -> anyhow::Result<()> {
-    client.send(ToServerData::PeerEnter(PeerEnter {
-        ip: device.tun_addr.to_string(),
-        endpoint_addr: arg.endpoint_addr.clone(),
-        port: device.port as u32,
-    })).await?;
     Ok(())
 }
 

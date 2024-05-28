@@ -12,12 +12,12 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use log::{debug, warn};
 use crate::{NativeTun, PeerStaticSecret, Tun};
+use crate::device::inbound::OutboundSender;
 use crate::noise::handshake::IncomingInitiation;
 use crate::noise::{crypto, protocol};
 use crate::device::peer::handshake::Handshake;
 use crate::device::peer::monitor::{PeerMetrics, PeerMonitor};
 use crate::device::peer::session::{ActiveSession, Session, SessionIndex};
-use crate::device::endpoint::Endpoint;
 
 #[derive(Debug)]
 pub(crate) enum OutboundEvent {
@@ -28,21 +28,21 @@ pub(crate) enum OutboundEvent {
 pub(crate) enum InboundEvent
 {
     HanshakeInitiation {
-        endpoint: Endpoint,
+        endpoint: Box<dyn OutboundSender>,
         initiation: IncomingInitiation,
     },
     HandshakeResponse {
-        endpoint: Endpoint,
+        endpoint: Box<dyn OutboundSender>,
         packet: protocol::HandshakeResponse,
         session: Session,
     },
     CookieReply {
-        endpoint: Endpoint,
+        endpoint: Box<dyn OutboundSender>,
         packet: protocol::CookieReply,
         session: Session,
     },
     TransportData {
-        endpoint: Endpoint,
+        endpoint: Box<dyn OutboundSender>,
         packet: protocol::TransportData,
         session: Session,
     },
@@ -53,14 +53,16 @@ pub(crate) type InboundRx = mpsc::Receiver<InboundEvent>;
 pub(crate) type OutboundTx = mpsc::Sender<OutboundEvent>;
 pub(crate) type OutboundRx = mpsc::Receiver<OutboundEvent>;
 
+/// 通过endpoint 发送数据
+/// udp-> peer
 pub struct Peer {
     tun: NativeTun,
     is_online: Mutex<bool>,
     monitor: PeerMonitor,
     handshake: RwLock<Handshake>,
     sessions: RwLock<ActiveSession>,
-    // 连接端点
-    endpoint: RwLock<Option<Endpoint>>,
+    /// 连接端点, 用于发送数据
+    endpoint: RwLock<Option<Box<dyn OutboundSender>>>,
     inbound: InboundTx,
     outbound: OutboundTx,
     ip_addr: String,
@@ -71,7 +73,7 @@ impl Peer {
         tun: NativeTun,
         secret: PeerStaticSecret,
         session_index: SessionIndex,
-        endpoint: Option<Endpoint>,
+        endpoint: Option<Box<dyn OutboundSender>>,
         inbound: InboundTx,
         outbound: OutboundTx,
         persitent_keepalive_interval: Option<Duration>,
@@ -127,9 +129,8 @@ impl Peer {
     #[inline]
     async fn send_outbound(&self, buf: &[u8]) {
         //发送wg数据包到节点
-
         let endpoint = {
-            self.endpoint.read().unwrap().clone()
+            self.endpoint.read().unwrap().as_ref().map(|e| e.box_clone())
         };
         if let Some(mut endpoint) = endpoint {
             endpoint.send(buf).await.unwrap();
@@ -138,7 +139,7 @@ impl Peer {
         }
     }
     #[inline]
-    pub fn update_endpoint(&self, endpoint: Endpoint) {
+    pub fn update_endpoint(&self, endpoint: Box<dyn OutboundSender>) {
         let mut guard = self.endpoint.write().unwrap();
         let _ = guard.insert(endpoint);
     }

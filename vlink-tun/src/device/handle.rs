@@ -8,7 +8,8 @@ use crate::noise::{Message, protocol};
 use crate::device::DeviceInner;
 use crate::device::peer::InboundEvent;
 use crate::device::endpoint::Endpoint;
-use crate::device::transport::Transport;
+use crate::device::inbound::OutboundSender;
+use crate::device::transport::{Transport, TransportInbound};
 
 pub struct DeviceHandle {}
 
@@ -71,7 +72,7 @@ async fn tick_outbound(inner: Arc<DeviceInner>)
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             if dst == inner.tun_addr {
                 //写回tun
-                if let Err(e) = inner.tun.send(&buf).await{
+                if let Err(e) = inner.tun.send(&buf).await {
                     error!("self data tun write error: {}", e);
                 }
                 return;
@@ -95,27 +96,29 @@ async fn tick_outbound(inner: Arc<DeviceInner>)
 
 
 /// 处理设备endpoint入口数据
+///
 async fn loop_inbound(token: CancellationToken, inner: Arc<DeviceInner>)
 {
-    debug!("Device Inbound loop for  is UP");
-    let mut transport = inner.settings.lock().unwrap().inbound.transport();
-    debug!("Device Inbound loop for {transport} is UP");
+    let mut transport = inner.settings.lock().unwrap().inbound.take_rx().expect("inbound transport is none");
+    debug!("Device Inbound loop is UP");
 
 
     let (secret, cookie) = {
-        let settings = inner.settings.lock().unwrap();
-        (settings.secret.clone(), Arc::clone(&settings.cookie))
+        // let settings = inner.settings.lock().unwrap();
+        // (settings.secret.clone(), Arc::clone(&settings.cookie))
+        inner.settings.lock().unwrap().secret_and_cookie()
     };
 
     loop {
         tokio::select! {
             _ = token.cancelled() => {
-                debug!("Device Inbound loop for {transport} is DOWN");
+                debug!("Device Inbound loop is DOWN");
                 return;
             }
-            data = transport.recv_from() => {
-                if let Ok((endpoint, payload)) = data {
-                    tick_inbound(Arc::clone(&inner), &secret, Arc::clone(&cookie), endpoint, payload).await;
+            //处理传输层数据
+            data = transport.recv() => {
+                if let Some((data, sender)) = data {
+                    tick_inbound(Arc::clone(&inner), &secret, Arc::clone(&cookie), sender, data).await;
                 }
             }
         }
@@ -127,7 +130,7 @@ async fn tick_inbound(
     inner: Arc<DeviceInner>,
     secret: &LocalStaticSecret,
     cookie: Arc<Cookie>,
-    endpoint: Endpoint,
+    endpoint: Box<dyn OutboundSender>,
     payload: Vec<u8>,
 )
 {

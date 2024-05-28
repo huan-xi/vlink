@@ -32,6 +32,7 @@ impl PeerHandle {
             outbound,
         ));
 
+
         Self {
             token,
             handles: vec![handshake_loop, inbound_loop, outbound_loop],

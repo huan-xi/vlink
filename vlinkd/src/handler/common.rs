@@ -14,7 +14,6 @@ pub fn bc_peer_enter2peer_config(p: &BcPeerEnter) -> anyhow::Result<PeerConfig> 
         endpoint: match p.endpoint_addr.clone() {
             None => { None }
             Some(addr) => {
-                //Some(SocketAddr::V4(SocketAddrV4::new(e.endpoint_addr.parse().unwrap(), e.port as u16)))
                 Some(SocketAddr::new(addr.parse()?, p.port as u16))
             }
         },

@@ -4,7 +4,6 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use async_trait::async_trait;
 use igd::PortMappingProtocol;
 use serde::{Deserialize, Serialize};
-use vlink_tun::device::endpoint::Endpoint;
 use vlink_tun::device::transport::Transport;
 use crate::forward::udp2udp::UdpToUdpForwarder;
 use crate::transport::nat2pub::nat_service::{NatService, NatServiceParam};
@@ -94,20 +93,6 @@ impl NatUdpTransport {
 }
 
 
-#[async_trait]
-impl Transport for NatUdpTransport {
-    fn port(&self) -> u16 {
-        todo!()
-    }
-
-    async fn send_to(&self, data: &[u8], dst: SocketAddr) -> Result<(), Error> {
-        todo!()
-    }
-
-    async fn recv_from(&mut self) -> Result<(Endpoint, Vec<u8>), Error> {
-        todo!()
-    }
-}
 
 #[cfg(test)]
 pub mod test {

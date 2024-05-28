@@ -1,23 +1,55 @@
+use std::fmt::{Debug, Display};
+use std::io;
 use std::net::SocketAddr;
-use crate::device::endpoint::Endpoint;
-use crate::device::transport::{TransportDispatcher};
+use std::sync::Mutex;
+use async_trait::async_trait;
+use tokio::sync::{mpsc};
+use crate::device::transport::udp::{UdpOutboundSender, UdpSocketInfo, UdpTransport};
 
 
+#[async_trait]
+pub trait OutboundSender: BoxCloneOutboundSender + Send + Sync + Debug + Display {
+    async fn send(&self, data: &[u8]) -> Result<(), io::Error>;
+    fn dst(&self) -> SocketAddr;
+}
+
+pub trait BoxCloneOutboundSender {
+    fn box_clone(&self) -> Box<dyn OutboundSender>;
+}
+
+/// 需要接受数据和数据发送器
+pub type InboundResult = (Vec<u8>, Box<dyn OutboundSender>);
+
+/// 设备的数据入口
 pub(super) struct Inbound {
     // ///传输层列表,udp,tcp,nat_udp,nat_tcp,derp,
-    pub(crate) transports: Vec<TransportDispatcher>,
+    // pub(crate) transport: TransportDispatcher,
+    tx: mpsc::Sender<InboundResult>,
+    rx: Mutex<Option<mpsc::Receiver<InboundResult>>>,
+    socket_info: UdpSocketInfo,
 }
 
 impl Inbound {
-    #[inline(always)]
-    pub fn transport(&self) -> TransportDispatcher {
-        self.transports[0].clone()
+    pub fn new(tx: mpsc::Sender<InboundResult>,
+               rx: mpsc::Receiver<InboundResult>,
+               socket_info: UdpSocketInfo) -> Self {
+        Self {
+            tx,
+            rx: Mutex::new(Some(rx)),
+            socket_info,
+        }
     }
-
-
-    #[inline(always)]
-    pub fn endpoint_for(&self, dst: SocketAddr) -> Endpoint {
-        Endpoint::new(self.transport(), dst)
+    pub fn tx(&self) -> mpsc::Sender<InboundResult> {
+        self.tx.clone()
     }
-
+    pub fn take_rx(&self) -> Option<mpsc::Receiver<InboundResult>> {
+        self.rx.lock().unwrap().take()
+    }
+    pub fn endpoint_for(&self, addr: SocketAddr) -> Box<dyn OutboundSender> {
+        Box::new(UdpOutboundSender {
+            dst: addr,
+            ipv4: self.socket_info.ipv4.clone(),
+            ipv6: self.socket_info.ipv6.clone(),
+        })
+    }
 }

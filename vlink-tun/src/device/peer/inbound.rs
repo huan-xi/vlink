@@ -5,12 +5,13 @@ use crate::noise::protocol;
 use crate::noise::protocol::{COOKIE_REPLY_PACKET_SIZE, CookieReply, HANDSHAKE_RESPONSE_PACKET_SIZE, HandshakeResponse, TransportData};
 use crate::Tun;
 use crate::device::endpoint::Endpoint;
+use crate::device::inbound::OutboundSender;
 use crate::device::peer::Peer;
 use crate::device::peer::session::Session;
 
 pub(super) async fn handle_handshake_initiation(
     peer: Arc<Peer>,
-    endpoint: Endpoint,
+    endpoint:  Box<dyn OutboundSender>,
     initiation: IncomingInitiation,
 ){
     peer.monitor
@@ -26,7 +27,7 @@ pub(super) async fn handle_handshake_initiation(
                 let mut sessions = peer.sessions.write().unwrap();
                 sessions.prepare_next(session);
             }
-            peer.update_endpoint(endpoint.clone());
+            peer.update_endpoint(endpoint.box_clone());
             endpoint.send(&packet).await.unwrap();
             peer.monitor.handshake().initiated();
         }
@@ -36,7 +37,7 @@ pub(super) async fn handle_handshake_initiation(
 
 pub(super) async fn handle_handshake_response(
     peer: Arc<Peer>,
-    endpoint: Endpoint,
+    endpoint:  Box<dyn OutboundSender>,
     packet: HandshakeResponse,
     _session: Session,
 ) {
@@ -69,7 +70,7 @@ pub(super) async fn handle_handshake_response(
 
 pub(super) async fn handle_cookie_reply(
     peer: Arc<Peer>,
-    _endpoint: Endpoint,
+    _endpoint:  Box<dyn OutboundSender>,
     _packet: CookieReply,
     _session: Session,
 ) {
@@ -79,7 +80,7 @@ pub(super) async fn handle_cookie_reply(
 /// 传输数据
 pub(super) async fn handle_transport_data(
     peer: Arc<Peer>,
-    endpoint: Endpoint,
+    endpoint:  Box<dyn OutboundSender>,
     packet: TransportData,
     session: Session,
 ) {

@@ -6,12 +6,18 @@ use serde::{Deserialize, Serialize};
 use crate::{LocalStaticSecret};
 use crate::device::peer::cidr::Cidr;
 
+// #[derive(Clone, Debug)]
+// pub enum Endpoint {
+//     Udp(SocketAddr)
+// }
+
 #[derive(Default, Clone, Debug, )]
 pub struct PeerConfig {
     pub public_key: [u8; 32],
     ///节点接受的ip
     pub allowed_ips: HashSet<Cidr>,
-    /// 连接地址
+    /// 只处理udp端口,peer 会使用该endpoint 主动发起握手
+    /// 如果不需要主动发起，则设置为空
     pub endpoint: Option<SocketAddr>,
     pub preshared_key: Option<[u8; 32]>,
     /// 延迟连接
@@ -23,6 +29,7 @@ pub struct PeerConfig {
     /// 连接时间
     pub persistent_keepalive: Option<Duration>,
     pub ip_addr: String,
+
 }
 
 impl PeerConfig {}
@@ -56,8 +63,6 @@ pub struct TransportConfig {
     pub trans_type: TransportType,
     pub params: String,
 }
-
-
 
 
 impl DeviceConfig {

@@ -1,5 +1,3 @@
-
-
 use clap::Parser;
 use log::{error, info};
 use tokio::net::TcpListener;
@@ -57,7 +55,9 @@ async fn main() -> anyhow::Result<()> {
             let cli = server_cc.remove_client(&addr).await;
             if let Some(mut c) = cli {
                 if let Some(c) = c.client_id.get() {
-                    // server_cc.remove_peer(c.pub_key.as_str());
+                    if let Ok(network) = server_cc.get_network(c.network_id).await {
+                        network.peers.offline(&c.pub_key).await;
+                    }
                 }
             };
         });

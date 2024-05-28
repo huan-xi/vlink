@@ -46,6 +46,12 @@ impl Peers {
             peers: RwMap::from(peers)
         }
     }
+    /// 下线
+    pub async fn offline(&self, pub_key: &str) {
+        if let Some(mut p) = self.peers.write_lock().await.get_mut(pub_key) {
+            p.online_info = None;
+        }
+    }
     pub async fn refresh_model(&self, model: PeerModel) {
         let pub_key: &str = model.pub_key.as_str();
         if let Some(mut p) = self.peers.write_lock().await.get_mut(pub_key) {

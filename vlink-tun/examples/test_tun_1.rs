@@ -83,6 +83,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         preshared_key: None,
         no_encrypt: false,
         persistent_keepalive: None,
+        is_online: false,
+        ip_addr: "".to_string(),
     });
 
     let tun_name = config.tun_name.as_str();

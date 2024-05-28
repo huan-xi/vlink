@@ -12,6 +12,7 @@ use crate::device::peer::monitor::PeerMetrics;
 use crate::device::peer::Peer;
 use crate::device::peer::session::{Session, SessionIndex};
 use crate::{NativeTun, PeerStaticSecret};
+use crate::device::inbound::OutboundSender;
 
 struct PeerEntry {
     peer: Arc<Peer>,
@@ -85,7 +86,7 @@ impl PeerList {
         &mut self,
         secret: PeerStaticSecret,
         allowed_ips: HashSet<Cidr>,
-        endpoint: Option<Endpoint>,
+        endpoint: Option<Box<dyn OutboundSender>>,
         persistent_keepalive_interval: Option<Duration>,
         is_online: bool,
         ip_addr: String,
@@ -97,7 +98,6 @@ impl PeerList {
             .or_insert_with(|| {
                 let (inbound_tx, inbound_rx) = mpsc::channel(2048);
                 let (outbound_tx, outbound_rx) = mpsc::channel(2048);
-
                 let peer = Arc::new(Peer::new(
                     self.tun.clone(),
                     secret,

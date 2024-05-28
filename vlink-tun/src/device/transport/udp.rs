@@ -1,15 +1,21 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::io;
+use std::io::Error;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::sync::Arc;
 use async_trait::async_trait;
 use socket2::{Domain, Protocol, Type};
 use tokio::net::UdpSocket;
 use log::{error, info};
-use crate::device::transport::{Endpoint, Transport, TransportDispatcher};
+use tokio::select;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::Sender;
+use tokio_util::sync::CancellationToken;
+use crate::device::inbound::{BoxCloneOutboundSender, InboundResult, OutboundSender};
+use crate::device::transport::{Endpoint, Transport, TransportDispatcher, TransportInbound, TransportOutbound, TransportWrapper};
 
 /// UdpTransport is a UDP endpoint that implements the [`Transport`] trait.
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct UdpTransport {
     port: u16,
     ipv4: Arc<UdpSocket>,
@@ -18,7 +24,106 @@ pub struct UdpTransport {
     ipv6_buf: Vec<u8>,
 }
 
+pub struct UdpSocketInfo {
+    pub ipv4: Arc<UdpSocket>,
+    pub ipv6: Arc<UdpSocket>,
+}
+
+#[derive(Clone)]
+pub struct UdpOutboundSender {
+    pub(crate) dst: SocketAddr,
+    pub(crate) ipv4: Arc<UdpSocket>,
+    pub(crate) ipv6: Arc<UdpSocket>,
+}
+
+impl BoxCloneOutboundSender for UdpOutboundSender {
+    fn box_clone(&self) -> Box<dyn OutboundSender> {
+        Box::new(self.clone())
+    }
+}
+
+impl Debug for UdpOutboundSender {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl Display for UdpOutboundSender {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+#[async_trait]
+impl OutboundSender for UdpOutboundSender {
+    async fn send(&self, data: &[u8]) -> Result<(), Error> {
+        let dst = self.dst.clone();
+        match dst {
+            SocketAddr::V4(_) => self.ipv4.send_to(data, dst).await?,
+            SocketAddr::V6(_) => self.ipv6.send_to(data, dst).await?,
+        };
+        Ok(())
+    }
+
+    fn dst(&self) -> SocketAddr {
+        self.dst.clone()
+    }
+}
+/*pub struct UdpOutboundPacket {
+    addr: SocketAddr,
+    data: Vec<u8>,
+}
+
+impl OutboundPacket for UdpOutboundPacket {}*/
+
+
 impl UdpTransport {
+    pub(crate) async fn spawn(token: CancellationToken, port: u16, sender: Sender<InboundResult>) -> Result<(u16, UdpSocketInfo), io::Error> {
+        // tokio::spawn()
+        let mut udp = Self::bind(Ipv4Addr::UNSPECIFIED, Ipv6Addr::UNSPECIFIED, port).await?;
+        // let (tx, rx) = mpsc::channel::<InboundResult>(1024);
+        let info = UdpSocketInfo {
+            ipv4: udp.ipv4.clone(),
+            ipv6: udp.ipv6.clone(),
+        };
+        //接受数据转到sender 中
+        // let txc = tx.clone();
+        let ipv4c = udp.ipv4.clone();
+        let ipv6c = udp.ipv6.clone();
+        let inbound = async move {
+            loop {
+                match udp.recv_from().await {
+                    Ok((addr, data)) => {
+                        let udp_sender = UdpOutboundSender {
+                            dst: addr,
+                            ipv4: ipv4c.clone(),
+                            ipv6: ipv6c.clone(),
+                        };
+                        let _ = sender.send((data, Box::new(udp_sender))).await;
+                    }
+                    Err(e) => {
+                        error!("Failed to receive data: {e}");
+                        break;
+                    }
+                }
+                // sender.send((data, endpoint)).await.unwrap();
+            }
+        };
+        tokio::spawn(async move {
+            loop {
+                select! {
+                    _ = token.cancelled() => {
+                        break;
+                    }
+                    _ = inbound => {
+                        break;
+                    }
+                }
+            }
+        });
+
+        Ok((port,info))
+    }
 
     pub(crate) async fn bind(ipv4: Ipv4Addr, ipv6: Ipv6Addr, port: u16) -> Result<Self, io::Error> {
         let (ipv4, ipv6, port) = Self::bind_socket(ipv4, ipv6, port).await?;
@@ -73,6 +178,9 @@ impl UdpTransport {
         socket.bind(&addr.into())?;
         UdpSocket::from_std(std::net::UdpSocket::from(socket))
     }
+    pub(crate) fn port(&self) -> u16 {
+        self.port
+    }
 
     async fn bind_socket_v6(addr: SocketAddrV6) -> Result<UdpSocket, io::Error> {
         let socket = socket2::Socket::new(Domain::IPV6, Type::DGRAM, Some(Protocol::UDP))?;
@@ -82,35 +190,7 @@ impl UdpTransport {
         socket.bind(&addr.into())?;
         UdpSocket::from_std(std::net::UdpSocket::from(socket))
     }
-}
-
-impl Display for UdpTransport {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "UdpTransport[{}/{}]",
-            self.ipv4.local_addr().unwrap(),
-            self.ipv6.local_addr().unwrap()
-        )
-    }
-}
-
-#[async_trait]
-impl Transport for UdpTransport {
-
-    fn port(&self) -> u16 {
-        self.port
-    }
-
-    async fn send_to(&self, data: &[u8], dst: SocketAddr,) -> Result<(), io::Error> {
-        match dst {
-            SocketAddr::V4(_) => self.ipv4.send_to(data, dst).await?,
-            SocketAddr::V6(_) => self.ipv6.send_to(data, dst).await?,
-        };
-        Ok(())
-    }
-
-    async fn recv_from(&mut self) -> Result<(Endpoint, Vec<u8>), io::Error> {
+    async fn recv_from(&mut self) -> Result<(SocketAddr, Vec<u8>), io::Error> {
         if self.ipv4_buf.is_empty() {
             self.ipv4_buf = vec![0u8; 2048];
         }
@@ -129,6 +209,29 @@ impl Transport for UdpTransport {
             },
         };
 
-        Ok((Endpoint::new(TransportDispatcher::Udp(self.clone()), addr), data))
+        Ok((addr, data))
     }
 }
+
+impl Display for UdpTransport {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "UdpTransport[{}/{}]",
+            self.ipv4.local_addr().unwrap(),
+            self.ipv6.local_addr().unwrap()
+        )
+    }
+}
+
+//
+// #[async_trait]
+// impl TransportOutbound for UdpTransport {
+//     async fn send_to(&self, data: &[u8], dst: SocketAddr) -> Result<(), io::Error> {
+//         match dst {
+//             SocketAddr::V4(_) => self.ipv4.send_to(data, dst).await?,
+//             SocketAddr::V6(_) => self.ipv6.send_to(data, dst).await?,
+//         };
+//         Ok(())
+//     }
+// }
