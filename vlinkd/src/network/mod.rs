@@ -115,7 +115,7 @@ impl VlinkNetworkManagerInner {
                             warn!("peer not found");
                         }
                         Some(e) => {
-                            *e.is_online.lock().unwrap() = true;
+                            e.set_online(true);
                         }
                     }
                     // device.insert_peer(c);

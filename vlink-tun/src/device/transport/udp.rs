@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display, Formatter, Pointer, write};
 use std::io;
 use std::io::Error;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use socket2::{Domain, Protocol, Type};
 use tokio::net::UdpSocket;
 use log::{error, info};
+use thiserror::__private::AsDisplay;
 use tokio::select;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
@@ -44,13 +45,13 @@ impl BoxCloneOutboundSender for UdpOutboundSender {
 
 impl Debug for UdpOutboundSender {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        std::fmt::Display::fmt(&self.as_display(), f)
     }
 }
 
 impl Display for UdpOutboundSender {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "UdpEndpoint -> ({})", self.dst)
     }
 }
 
@@ -122,7 +123,7 @@ impl UdpTransport {
             }
         });
 
-        Ok((port,info))
+        Ok((port, info))
     }
 
     pub(crate) async fn bind(ipv4: Ipv4Addr, ipv6: Ipv6Addr, port: u16) -> Result<Self, io::Error> {

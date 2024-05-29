@@ -35,7 +35,8 @@ impl PeerHandle {
 
         Self {
             token,
-            handles: vec![handshake_loop, inbound_loop, outbound_loop],
+            // handles: vec![handshake_loop, inbound_loop, outbound_loop],
+            handles: vec![],
         }
     }
 
@@ -112,7 +113,12 @@ async fn loop_handshake(token: CancellationToken, peer: Arc<Peer>)
 {
     debug!("Handshake loop for {peer} is UP");
     while !token.is_cancelled() {
-        if *peer.is_online.lock().unwrap() && peer.monitor.can_handshake() {
+        // tokio::time::sleep(Duration::from_secs(1)).await;
+        peer.await_online().await;
+        // todo 等待endpoint
+
+        //等待设备变成在线
+        if peer.monitor.can_handshake() {
             info!("initiating handshake");
             let packet = {
                 let (next, packet) = peer.handshake.write().unwrap().initiate();
@@ -124,8 +130,10 @@ async fn loop_handshake(token: CancellationToken, peer: Arc<Peer>)
             peer.send_outbound(&packet).await;
             peer.monitor.handshake().initiated();
         }
-        //todo 主动唤醒功能
+
+        debug!("Handshake loop for {peer} is sleep");
         time::sleep_until(peer.monitor.handshake().will_initiate_in().into()).await;
+        debug!("Handshake loop for {peer} is sleep end");
     }
     debug!("Handshake loop for {peer} is DOWN");
 }

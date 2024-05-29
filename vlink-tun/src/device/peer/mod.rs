@@ -7,9 +7,9 @@ mod handshake;
 mod inbound;
 
 use std::fmt::{Display, Formatter};
-use std::sync::{Mutex, RwLock};
+use std::sync::RwLock;
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use log::{debug, warn};
 use crate::{NativeTun, PeerStaticSecret, Tun};
 use crate::device::inbound::OutboundSender;
@@ -53,11 +53,26 @@ pub(crate) type InboundRx = mpsc::Receiver<InboundEvent>;
 pub(crate) type OutboundTx = mpsc::Sender<OutboundEvent>;
 pub(crate) type OutboundRx = mpsc::Receiver<OutboundEvent>;
 
+pub struct WatchOnline {
+    online_rx: watch::Receiver<bool>,
+    online_tx: watch::Sender<bool>,
+}
+
+impl WatchOnline {
+    pub fn new(init: bool) -> Self {
+        let (online_tx, online_rx) = watch::channel(init);
+        Self {
+            online_rx,
+            online_tx,
+        }
+    }
+}
+
 /// 通过endpoint 发送数据
 /// udp-> peer
 pub struct Peer {
     tun: NativeTun,
-    pub is_online: Mutex<bool>,
+    online: WatchOnline,
     monitor: PeerMonitor,
     handshake: RwLock<Handshake>,
     sessions: RwLock<ActiveSession>,
@@ -84,6 +99,7 @@ impl Peer {
         let sessions = RwLock::new(ActiveSession::new(session_index));
         let monitor = PeerMonitor::new(persitent_keepalive_interval);
         let endpoint = RwLock::new(endpoint);
+        let (tx, rx) = watch::channel(is_online);
         Self {
             tun,
             handshake,
@@ -92,8 +108,25 @@ impl Peer {
             outbound,
             endpoint,
             monitor,
-            is_online: Mutex::new(is_online),
+            online: WatchOnline::new(is_online),
             ip_addr,
+        }
+    }
+    pub fn set_online(&self, val: bool) {
+        if let Err(e) = self.online.online_tx.send(val)
+        {
+            warn!("{} not able to set online: {}", self, e);
+        }
+    }
+    #[inline]
+    pub async fn await_online(&self) {
+        if !*self.online.online_rx.borrow() {
+            let mut rx = self.online.online_rx.clone();
+            while let Ok(()) = rx.changed().await {
+                if *rx.borrow() {
+                    return;
+                }
+            }
         }
     }
 
@@ -147,8 +180,6 @@ impl Peer {
 
 impl Display for Peer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        //             "Peer({})",
-//             crypto::encode_to_hex(self.secret.public_key().as_bytes())
-        write!(f, "Peer({})", self.ip_addr)
+        write!(f, "Peer({}),endpoint:{:?}", self.ip_addr, self.endpoint.read())
     }
 }
