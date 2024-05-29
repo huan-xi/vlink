@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr};
 use crate::client::ClientConnect;
 use crate::db::entity::prelude::PeerModel;
@@ -5,11 +6,17 @@ use crate::db::entity::prelude::PeerModel;
 #[derive(Clone)]
 pub struct ModelInfo {}
 
+
+
+
 #[derive(Clone,)]
 pub struct OnlineInfo {
     pub connect: ClientConnect,
     pub port: u32,
     pub endpoint_addr: Option<String>,
+
+    /// 扩展协议的接入端点
+    pub extra_endpoints: HashMap<String, String>,
 }
 
 #[derive(Clone)]

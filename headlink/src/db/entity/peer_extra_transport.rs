@@ -8,34 +8,28 @@ pub struct Entity;
 
 impl EntityName for Entity {
     fn table_name(&self) -> &str {
-        "peer"
+        "peer_extra_transport"
     }
 }
 
 #[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel, Eq, Serialize, Deserialize)]
 pub struct Model {
     pub id: i64,
-    pub pub_key: String,
-    pub ip: Option<String>,
-    pub endpoint_addr: Option<String>,
-    pub port: Option<i32>,
-    pub network_id: i64,
     pub disabled: bool,
-    pub create_at: Option<DateTime>,
-    pub update_at: Option<DateTime>,
+    pub peer_id: i64,
+    pub proto: String,
+    pub params: String,
+    pub weight: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
 pub enum Column {
     Id,
-    PubKey,
-    Ip,
-    EndpointAddr,
-    Port,
-    NetworkId,
-    CreateAt,
-    UpdateAt,
     Disabled,
+    PeerId,
+    Proto,
+    Params,
+    Weight,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -57,15 +51,12 @@ impl ColumnTrait for Column {
     type EntityName = Entity;
     fn def(&self) -> ColumnDef {
         match self {
-            Self::PubKey => ColumnType::Text.def().unique(),
-            Self::Id => ColumnType::BigInteger.def().unique(),
-            Self::Ip => ColumnType::Text.def().null(),
-            Self::EndpointAddr => ColumnType::Text.def().null(),
-            Self::Port => ColumnType::Integer.def().null(),
-            Self::NetworkId => ColumnType::BigInteger.def(),
+            Self::Id => ColumnType::BigInteger.def(),
             Self::Disabled => ColumnType::Boolean.def(),
-            Self::CreateAt => ColumnType::DateTime.def().null(),
-            Self::UpdateAt => ColumnType::DateTime.def().null(),
+            Self::PeerId => ColumnType::BigInteger.def(),
+            Self::Proto => ColumnType::String(None).def(),
+            Self::Params => ColumnType::Text.def(),
+            Self::Weight => ColumnType::Integer.def(),
         }
     }
 }

@@ -24,7 +24,7 @@ pub type InboundResult = (Vec<u8>, Box<dyn OutboundSender>);
 pub(super) struct Inbound {
     // ///传输层列表,udp,tcp,nat_udp,nat_tcp,derp,
     // pub(crate) transport: TransportDispatcher,
-    tx: mpsc::Sender<InboundResult>,
+    pub(crate) tx: mpsc::Sender<InboundResult>,
     rx: Mutex<Option<mpsc::Receiver<InboundResult>>>,
     socket_info: UdpSocketInfo,
 }

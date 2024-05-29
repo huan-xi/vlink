@@ -2,8 +2,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use igd::PortMappingProtocol;
 use log::info;
 use serde::{Deserialize, Serialize};
-use crate::forward::tcp2udp::TcpToUdpForwarder;
-use crate::forward::udp2udp::UdpToUdpForwarder;
+use crate::transport::forward::tcp2udp::TcpToUdpForwarder;
 use crate::transport::nat2pub::nat_service::{NatService, NatServiceParam};
 use crate::transport::nat_udp::NatUdpTransportParam;
 

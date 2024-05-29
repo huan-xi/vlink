@@ -1,17 +1,16 @@
 use std::collections::HashSet;
 use std::env;
 use std::error::Error;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::process::Command;
 use base64::engine::general_purpose::STANDARD as base64Encoding;
 use vlink_tun::device::{Device};
 use base64::Engine;
+use ip_network::{IpNetwork, Ipv4Network};
 use serde::Deserialize;
 use tokio::fs;
 use tokio::io::AsyncReadExt;
 use log::info;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
 use log::log;
 use vlink_tun::device::config::{DeviceConfig, PeerConfig};
 use vlink_tun::device::peer::cidr::Cidr;
@@ -45,13 +44,8 @@ pub struct Config {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            // std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into()),
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    env::set_var("RUST_LOG", "debug");
+    env_logger::init();
     let args: Vec<String> = env::args().collect();
     println!("{args:?}");
     let str = if args.len() == 1 {
@@ -66,8 +60,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let config: Config = toml::from_str(str.as_str()).unwrap();
 
     info!("Starting");
-    let cfg = DeviceConfig::default();
 
+    let cfg = DeviceConfig {
+        private_key: [0u8; 32],
+        fwmark: 0,
+        port: 0,
+        peers: Default::default(),
+        address: Ipv4Addr::new(192, 168, 10, 5),
+        network: IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(192, 168, 10, 0), 24).unwrap()),
+    };
     let cidr = config.allowed_ips.parse::<Cidr>().unwrap();
     let allowed_ips = HashSet::from([cidr]);
 

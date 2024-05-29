@@ -52,18 +52,12 @@ pub struct ArgConfig {
     pub port: Option<u16>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum TransportType {
-    NatUdp,
-}
-
 /// 传输层配置
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TransportConfig {
-    pub trans_type: TransportType,
+    pub proto: String,
     pub params: String,
 }
-
 
 impl DeviceConfig {
     #[inline(always)]

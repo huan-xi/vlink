@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 axum.workspace = true
+tap.workspace = true
 derive-new = "0.6.0"
 igd = { version = "0.12.1", features = ["aio"] }
 stun-format = { version = "1.0.1", features = ["fmt", "rfc3489"] }

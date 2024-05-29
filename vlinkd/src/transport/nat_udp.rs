@@ -1,17 +1,24 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Error;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::sync::Arc;
 use async_trait::async_trait;
 use igd::PortMappingProtocol;
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::Sender;
+use vlink_core::proto::pb::abi::to_server::ToServerData;
+use vlink_core::proto::pb::abi::UpdateExtraEndpoint;
 use vlink_tun::device::transport::Transport;
-use crate::forward::udp2udp::UdpToUdpForwarder;
+use vlink_tun::InboundResult;
+use crate::client::VlinkClient;
+use crate::transport::forward::udp::UdpForwarder;
 use crate::transport::nat2pub::nat_service::{NatService, NatServiceParam};
+
+pub const PROTO_NAME: &str = "NatUdp";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NatUdpTransportParam {
     stun_servers: Vec<String>,
-    wireguard_port: u16,
     /// 0 自动获取
     nat_port: u16,
 }
@@ -22,15 +29,17 @@ pub struct NatUdpTransportParam {
 /// 第二种方案
 /// 直接设置wireguard udp成端口复用，用udp端口连接stun 服务器，获取公网地址，直接就穿透成功,
 /// 不需要端口转发
+/// 第三种方案，直接转到device 的数据接收器
 
 pub struct NatUdpTransport {
-    wireguard_port: u16,
+    client: Arc<VlinkClient>,
     svc: NatService,
-    forwarder: Option<UdpToUdpForwarder>,
+    sender: Sender<InboundResult>,
+    forwarder: Option<UdpForwarder>,
 }
 
 impl NatUdpTransport {
-    pub async fn new(param: NatUdpTransportParam) -> anyhow::Result<Self> {
+    pub async fn new(client: Arc<VlinkClient>, sender: Sender<InboundResult>, param: NatUdpTransportParam) -> anyhow::Result<Self> {
         let svc = NatService::new(NatServiceParam {
             stun_servers: param.stun_servers,
             port: param.nat_port,
@@ -38,7 +47,8 @@ impl NatUdpTransport {
             upnp_broadcast_address: None,
         });
         Ok(Self {
-            wireguard_port: param.wireguard_port,
+            client,
+            sender,
             svc,
             forwarder: None,
         })
@@ -50,8 +60,13 @@ impl NatUdpTransport {
             if let Some(addr) = rx.recv().await {
                 let port = addr.port();
                 let wireguard_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port));
-                let forward = UdpToUdpForwarder::spawn(port, wireguard_addr).await?;
+                let forward = UdpForwarder::spawn(self.sender.clone(), port, wireguard_addr).await?;
                 self.forwarder = Some(forward);
+                //发送更新端点
+                let _ = self.client.send(ToServerData::UpdateExtraEndpoint(UpdateExtraEndpoint {
+                    proto: PROTO_NAME.to_string(),
+                    endpoint: addr.to_string(),
+                })).await;
             }
         }
 
@@ -93,11 +108,11 @@ impl NatUdpTransport {
 }
 
 
-
 #[cfg(test)]
 pub mod test {
     use std::env;
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+    use std::sync::mpsc::channel;
     use std::time::Duration;
     use log::{error, info};
     use tokio::net::UdpSocket;
@@ -159,8 +174,9 @@ pub mod test {
                 }
             }
         });
+        let (tx, rx) = tokio::sync::mpsc::channel(1024);
         // time::sleep(Duration::from_secs(100000)).await;
-        let mut a = NatUdpTransport::new(param).await.unwrap();
+        let mut a = NatUdpTransport::new(tx, param).await.unwrap();
 
         a.start().await?;
         info!("{}", a);

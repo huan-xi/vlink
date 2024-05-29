@@ -3,7 +3,7 @@
 pub struct ToServer {
     #[prost(uint64, tag="1")]
     pub id: u64,
-    #[prost(oneof="to_server::ToServerData", tags="2, 3, 10, 11, 12, 13, 14")]
+    #[prost(oneof="to_server::ToServerData", tags="2, 3, 10, 11, 12, 13, 14, 15")]
     pub to_server_data: ::core::option::Option<to_server::ToServerData>,
 }
 /// Nested message and enum types in `ToServer`.
@@ -25,7 +25,17 @@ pub mod to_server {
         /// 上报信息
         #[prost(message, tag="14")]
         PeerReport(super::PeerReport),
+        /// 更新端点
+        #[prost(message, tag="15")]
+        UpdateExtraEndpoint(super::UpdateExtraEndpoint),
     }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateExtraEndpoint {
+    #[prost(string, tag="1")]
+    pub proto: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub endpoint: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReqHandshake {
@@ -115,6 +125,13 @@ pub struct RespHandshake {
     #[prost(string, optional, tag="4")]
     pub msg: ::core::option::Option<::prost::alloc::string::String>,
 }
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExtraTransport {
+    #[prost(string, tag="1")]
+    pub proto: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub params: ::prost::alloc::string::String,
+}
 //// 配置响应
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RespConfig {
@@ -135,6 +152,8 @@ pub struct RespConfig {
     pub ipv6_addr: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, repeated, tag="10")]
     pub peers: ::prost::alloc::vec::Vec<BcPeerEnter>,
+    #[prost(message, repeated, tag="11")]
+    pub extra_transports: ::prost::alloc::vec::Vec<ExtraTransport>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BcPeerEnter {

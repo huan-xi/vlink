@@ -3,6 +3,7 @@ use crate::client::error::ExecuteError;
 
 mod req_config;
 mod peer_enter;
+mod update_extra_endpoint;
 
 pub type ExecuteResult = Result<(), ExecuteError>;
 

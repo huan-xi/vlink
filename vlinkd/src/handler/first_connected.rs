@@ -6,7 +6,7 @@ use log::info;
 use vlink_core::proto::pb::abi::ReqConfig;
 use vlink_core::proto::pb::abi::to_client::ToClientData;
 use vlink_core::proto::pb::abi::to_server::ToServerData;
-use vlink_tun::device::config::ArgConfig;
+use vlink_tun::device::config::{ArgConfig, TransportConfig};
 use vlink_tun::DeviceConfig;
 use crate::client::VlinkClient;
 use crate::config::VlinkNetworkConfig;
@@ -41,12 +41,19 @@ pub async fn request_for_config(client: Arc<VlinkClient>, private_key: [u8; 32],
         let c = bc_peer_enter2peer_config(p)?;
         device_config = device_config.peer(c);
     }
+    let mut transports = vec![];
+    for t in resp_config.extra_transports.iter() {
+        transports.push(TransportConfig {
+            proto: t.proto.clone(),
+            params: t.params.clone(),
+        })
+    }
 
     let cfg = VlinkNetworkConfig {
         tun_name: None,
         device_config,
         arg_config: args.clone(),
-        transports: vec![],
+        transports,
         stun_servers: vec![],
     };
     Ok(cfg)

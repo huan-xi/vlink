@@ -1,23 +1,18 @@
-pub mod ctrl;
-pub mod types;
-
 use std::ops::Deref;
-use std::sync::{Arc};
+use std::sync::Arc;
 use std::time::Duration;
 
 use base64::Engine;
-use log::info;
-use tokio::sync::{mpsc, Mutex, RwLock};
-use tokio::sync::mpsc::Receiver;
+use log::{error, info, warn};
+use tokio::sync::{Mutex, RwLock};
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::time::timeout;
 
-use vlink_core::proto::pb::abi::*;
-use vlink_core::proto::pb::abi::PeerEnter;
-use vlink_core::proto::pb::abi::to_server::ToServerData;
+use vlink_core::base64::decode_base64;
 use vlink_core::secret::VlinkStaticSecret;
-use vlink_tun::device::config::{ArgConfig, TransportConfig, TransportType};
+use vlink_tun::device::config::{ArgConfig, TransportConfig};
 use vlink_tun::device::Device;
-use vlink_tun::Tun;
+use vlink_tun::{InboundResult, Tun};
 
 use crate::client::VlinkClient;
 use crate::config::VlinkNetworkConfig;
@@ -25,6 +20,9 @@ use crate::handler;
 use crate::handler::first_connected::request_for_config;
 use crate::network::ctrl::NetworkCtrlCmd;
 use crate::transport::nat_udp::{NatUdpTransport, NatUdpTransportParam};
+
+pub mod ctrl;
+pub mod types;
 
 pub enum NetworkStatus {
     Running,
@@ -84,12 +82,12 @@ impl VlinkNetworkManagerInner {
                 Some(request_for_config(client_c, *secret_c.private_key.as_bytes(), &args).await?)
             }
             Err(_) => {
-                //文件中读取配置,
+                //文件中读取上一次缓存,
                 todo!();
             }
         };
         if let Some(cfg) = config {
-            self.device.write().await.replace(start_device(cfg).await?);
+            self.start_device(cfg).await?;
         }
 
 
@@ -103,8 +101,23 @@ impl VlinkNetworkManagerInner {
                     // device.change_ip();
                 }
                 NetworkCtrlCmd::PeerEnter(e) => {
-                    info!("新增节点:ip:{},endpoint_addr:{:?}",e.ip,e.endpoint_addr);
+                    //标记节点在线
+                    // self.get_device().await?;
+                    // info!("新增节点:ip:{},endpoint_addr:{:?}",e.ip,e.endpoint_addr);
                     // let c = bc_peer_enter2peer_config(&e)?;
+                    let peer = device_c.read()
+                        .await
+                        .as_ref()
+                        .ok_or(anyhow::anyhow!("device is none"))?
+                        .get_peer_by_key(&decode_base64(e.pub_key.as_str())?.try_into().unwrap());
+                    match peer {
+                        None => {
+                            warn!("peer not found");
+                        }
+                        Some(e) => {
+                            *e.is_online.lock().unwrap() = true;
+                        }
+                    }
                     // device.insert_peer(c);
                 }
                 NetworkCtrlCmd::Connected => {
@@ -135,27 +148,43 @@ impl VlinkNetworkManagerInner {
          let event_loop = {};
         */
     }
+
+    // async fn get_device(&self) -> anyhow::Result<dyn AsRef<Device>> {
+    //     self.device.read().await.ok_or(anyhow::anyhow!("device is none"))
+    // }
+    async fn start_device(&self, config: VlinkNetworkConfig) -> anyhow::Result<()> {
+        //启动peer 协议协商
+        let trans = config.transports.clone();
+        let device = Device::new(config.tun_name, config.device_config).await?;
+        let tx = device.inbound_tx();
+
+        self.device.write().await.replace(device);
+        for cfg in trans {
+            let txc = tx.clone();
+            let cc = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = start_extra_transport(cc,txc, cfg).await {
+                    error!("start extra transport error{e}")
+                }
+            });
+        }
+        Ok(())
+    }
 }
 
-async fn start_device(config: VlinkNetworkConfig) -> anyhow::Result<Device> {
-    let device = Device::new(config.tun_name, config.device_config).await?;
+async fn start_extra_transport(cc: Arc<VlinkClient>, sender: Sender<InboundResult>, cfg: TransportConfig) -> anyhow::Result<()> {
+    match cfg.proto.as_str() {
+        "NatUdp" => {
+            let param: NatUdpTransportParam = serde_json::from_str(&cfg.params)?;
+            let mut ts = NatUdpTransport::new(cc,sender, param).await?;
+            ts.start().await?;
+        }
+        _ => {
 
-    Ok(device)
-}
-
-
-async fn start_transports(trans: &Vec<TransportConfig>) -> anyhow::Result<()> {
-    for cfg in trans.iter() {
-        match cfg.trans_type {
-            TransportType::NatUdp => {
-                let param: NatUdpTransportParam = serde_json::from_str(&cfg.params)?;
-                NatUdpTransport::new(param).await?;
-            }
         }
     }
     Ok(())
 }
-
 
 impl Deref for VlinkNetworkManager {
     type Target = VlinkNetworkManagerInner;

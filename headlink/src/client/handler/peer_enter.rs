@@ -19,6 +19,7 @@ impl ToServerDataHandler for PeerEnter {
             connect: ctx.client.clone(),
             port: self.port,
             endpoint_addr: self.endpoint_addr.clone(),
+            extra_endpoints: Default::default(),
         };
         if self.ip.as_str() != peer.model.ip.clone().unwrap_or("".to_string()).as_str() {
             return Err(ExecuteError::IpNotMatch);

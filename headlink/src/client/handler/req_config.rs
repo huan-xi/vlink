@@ -5,10 +5,10 @@ use sea_orm::*;
 use sea_orm::ActiveValue::Set;
 use crate::client::dispatcher::{ClientRequest, RequestContext};
 use crate::client::handler::{ExecuteResult, ToServerDataHandler};
-use vlink_core::proto::pb::abi::{BcPeerEnter, ReqConfig, RespConfig};
+use vlink_core::proto::pb::abi::{BcPeerEnter, ExtraTransport, ReqConfig, RespConfig};
 use vlink_core::proto::pb::abi::to_client::ToClientData;
 use crate::client::error::ExecuteError;
-use crate::db::entity::prelude::{PeerActiveModel, PeerColumn, PeerEntity, PeerModel};
+use crate::db::entity::prelude::{PeerActiveModel, PeerColumn, PeerEntity, PeerExtraTransportColumn, PeerExtraTransportEntity, PeerModel};
 use crate::server::Peers;
 
 impl ToServerDataHandler for ReqConfig {
@@ -23,6 +23,7 @@ impl ToServerDataHandler for ReqConfig {
         let mut peers = vec![];
         for (k, p) in network.peers.read_lock().await.iter() {
             if let Some(ip) = p.model.ip.as_ref() {
+                //额外的连接信息
                 peers.push(BcPeerEnter {
                     pub_key: k.to_string(),
                     ip: ip.to_string(),
@@ -55,6 +56,20 @@ impl ToServerDataHandler for ReqConfig {
             }
             Some(e) => e.as_str().parse()?
         };
+        //查询额外的传输层协议
+        let transports = PeerExtraTransportEntity::find()
+            .filter(PeerExtraTransportColumn::PeerId.eq(self_peer.model.id)
+                .and(PeerExtraTransportColumn::Disabled.eq(false)))
+            .all(ctx.conn())
+            .await?;
+
+        let extra_transports = transports.into_iter().map(|m| {
+            ExtraTransport {
+                proto: m.proto,
+                params: m.params,
+            }
+        }).collect();
+
         let resp = RespConfig {
             network_id: network.network_id,
             address: addr.into(),
@@ -63,6 +78,7 @@ impl ToServerDataHandler for ReqConfig {
             port: self_peer.model.port.unwrap_or(0) as u32,
             ipv6_addr: None,
             peers,
+            extra_transports,
         };
         ctx.send_resp(ToClientData::RespConfig(resp)).await?;
         Ok(())

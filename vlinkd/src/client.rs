@@ -115,7 +115,7 @@ impl VlinkClient {
                     //退出
                     break;
                 };
-                info!("重连握手成功");
+                debug!("重连握手成功");
                 {
                     lock_conn_c.write().await.replace(conn);
                 }

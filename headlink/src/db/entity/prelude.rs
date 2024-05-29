@@ -16,3 +16,8 @@ pub use super::network::ActiveModel as NetworkActiveModel;
 
 pub use super::config::Entity as ConfigEntity;
 pub use super::config::ActiveModel as ConfigActiveModel;
+
+
+pub use super::peer_extra_transport::Entity as PeerExtraTransportEntity;
+pub use super::peer_extra_transport::Model as PeerExtraTransportModel;
+pub use super::peer_extra_transport::Column as PeerExtraTransportColumn;

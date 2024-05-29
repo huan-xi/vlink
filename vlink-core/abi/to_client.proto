@@ -31,6 +31,12 @@ message RespHandshake {
     bool success = 1;
     optional string msg = 4;
 }
+
+message ExtraTransport {
+    string proto = 1;
+    string params = 2;
+}
+
 /// 配置响应
 message RespConfig {
     int64 network_id = 1;
@@ -44,6 +50,7 @@ message RespConfig {
 
     optional string ipv6_addr = 6;
     repeated BcPeerEnter peers = 10;
+    repeated ExtraTransport extra_transports = 11;
 }
 
 

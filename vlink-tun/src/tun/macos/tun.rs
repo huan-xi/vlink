@@ -3,6 +3,7 @@ use std::mem::{size_of, size_of_val};
 use std::net::Ipv4Addr;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::{Buf, BytesMut};
@@ -38,7 +39,6 @@ pub struct NativeTun {
 }
 
 impl NativeTun {
-
     pub fn new(name: Option<String>) -> Result<Self, Error> {
         let idx = if let Some(name) = name {
             if name.len() > IFNAMSIZ {

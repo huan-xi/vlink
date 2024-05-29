@@ -22,7 +22,7 @@ pub mod test {
     #[test]
     pub fn test() {
         let a = TransportConfig {
-            trans_type: TransportType::NatUdp,
+            proto: TransportType::NatUdp,
             params: "abcd".to_string(),
         };
         println!("{}", serde_json::to_string(&a).unwrap());

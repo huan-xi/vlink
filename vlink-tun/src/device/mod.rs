@@ -28,7 +28,7 @@ mod metrics;
 mod rate_limiter;
 mod time;
 pub mod config;
-mod inbound;
+pub(crate) mod inbound;
 pub mod transport;
 pub mod endpoint;
 mod crypto;
@@ -101,8 +101,8 @@ impl Device {
         // wiretun::Device::with_udp(tun, cfg).await
         let token = CancellationToken::new();
         let (tx, rx) = mpsc::channel::<InboundResult>(1024);
-        let (port,socket_info) = UdpTransport::spawn(token.child_token(), cfg.port, tx.clone()).await?;
-        let inbound = Inbound::new(tx.clone(), rx,socket_info);
+        let (port, socket_info) = UdpTransport::spawn(token.child_token(), cfg.port, tx.clone()).await?;
+        let inbound = Inbound::new(tx.clone(), rx, socket_info);
         let settings = Mutex::new(Settings::new(inbound, cfg.private_key, cfg.fwmark));
         let peers = Mutex::new(PeerList::new(token.child_token(), tun.clone()));
         let inner = Arc::new(DeviceInner {
@@ -121,6 +121,10 @@ impl Device {
             handler,
             port,
         })
+    }
+
+    pub fn inbound_tx(&self) -> mpsc::Sender<InboundResult> {
+        self.inner.settings.lock().unwrap().inbound.tx.clone()
     }
 }
 

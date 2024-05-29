@@ -124,6 +124,7 @@ async fn loop_handshake(token: CancellationToken, peer: Arc<Peer>)
             peer.send_outbound(&packet).await;
             peer.monitor.handshake().initiated();
         }
+        //todo 主动唤醒功能
         time::sleep_until(peer.monitor.handshake().will_initiate_in().into()).await;
     }
     debug!("Handshake loop for {peer} is DOWN");

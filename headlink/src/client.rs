@@ -29,7 +29,7 @@ use futures_util::future::join_all;
 use prost::Message;
 use sea_orm::{EntityTrait, QueryFilter};
 use tokio::time::timeout;
-use crate::db::entity::prelude::{NetworkEntity, NetworkTokenColumn, NetworkTokenEntity, PeerEntity};
+use crate::db::entity::prelude::{NetworkEntity, NetworkTokenColumn, NetworkTokenEntity, PeerColumn, PeerEntity};
 use crate::client::dispatcher::{Dispatcher, ClientRequest, RequestContext};
 use crate::peer::VlinkPeer;
 
@@ -228,7 +228,8 @@ async fn handshake0(server: &VlinkServer, client: &ClientConnect, data: ToServer
             network.network_id
         } else {
             //peer取
-            let peer = PeerEntity::find_by_id(pub_key.as_str())
+            let peer = PeerEntity::find()
+                .filter(PeerColumn::PubKey.eq(pub_key.as_str()))
                 .one(server.conn())
                 .await?
                 .ok_or(anyhow!("peer 未注册"))?;

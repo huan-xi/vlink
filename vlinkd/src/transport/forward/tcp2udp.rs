@@ -1,11 +1,12 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
-use crate::forward::udp2udp::UdpToUdpForwarder;
-use crate::transport::nat2pub::reuse_socket::{make_tcp_socket, make_udp_socket};
+
+use crate::transport::nat2pub::reuse_socket::make_tcp_socket;
 
 pub struct TcpToUdpForwarder {
     token: CancellationToken,
@@ -45,7 +46,7 @@ impl TcpToUdpForwarder {
             loop {
                 tokio::select! {
                     _ = token_c.cancelled() => {break;}
-                    _=handler => {break;}
+                    _ = handler => {break;}
                 }
             }
         });

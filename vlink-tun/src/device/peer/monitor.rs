@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime};
+use log::info;
 
 use crate::device::time::{AtomicInstant, AtomicTimestamp};
 
@@ -11,6 +12,7 @@ const REKEY_TIMEOUT: Duration = Duration::from_secs(5);
 const KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub(super) struct HandshakeMonitor {
+    /// 上一次尝试时间
     last_attempt_at: AtomicInstant,
     last_complete_at: AtomicInstant,
     last_complete_ts: AtomicTimestamp,
@@ -21,7 +23,7 @@ impl HandshakeMonitor {
     #[inline]
     pub fn new() -> Self {
         Self {
-            last_attempt_at: AtomicInstant::now(),
+            last_attempt_at: AtomicInstant::from_std(Instant::now() - REKEY_TIMEOUT),
             last_complete_at: AtomicInstant::from_std(Instant::now() - REJECT_AFTER_TIME),
             attempt_before: AtomicInstant::now() + REKEY_ATTEMPT_TIME,
             last_complete_ts: AtomicTimestamp::zeroed(),
@@ -156,7 +158,6 @@ impl PeerMonitor {
 
     #[inline]
     pub fn can_handshake(&self) -> bool {
-
         if self.traffic.tx_messages.load(Ordering::Relaxed) >= REKEY_AFTER_MESSAGES {
             return true;
         }
@@ -170,7 +171,6 @@ impl PeerMonitor {
         {
             self.handshake.reset_attempt();
         }
-
         self.handshake.last_attempt_at.elapsed() >= REKEY_TIMEOUT
     }
 

@@ -2,11 +2,14 @@ refresh_rate: 30 seconds
 appenders:
   stdout:
     kind: console
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} {M} {L} {h({l})} - {m}{n}"
   requests:
     kind: file
     path: "log/requests.log"
     encoder:
-      pattern: "{d} - {m}{n}"
+#      pattern: "{d} - {m}{n}"
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} {M} {L} {h({l})} - {m}{n}"
 root:
   level: debug
   appenders:

@@ -5,7 +5,6 @@ pub mod connect;
 pub mod utils;
 pub mod config;
 pub mod transport;
-pub mod forward;
 pub mod error;
 mod handler;
 pub mod api;

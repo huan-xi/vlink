@@ -5,7 +5,6 @@ use std::time::Duration;
 use log::debug;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use crate::device::endpoint::Endpoint;
 use crate::device::peer::cidr::{Cidr, CidrTable};
 use crate::device::peer::handler::PeerHandle;
 use crate::device::peer::monitor::PeerMetrics;

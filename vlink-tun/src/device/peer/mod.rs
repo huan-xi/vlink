@@ -57,7 +57,7 @@ pub(crate) type OutboundRx = mpsc::Receiver<OutboundEvent>;
 /// udp-> peer
 pub struct Peer {
     tun: NativeTun,
-    is_online: Mutex<bool>,
+    pub is_online: Mutex<bool>,
     monitor: PeerMonitor,
     handshake: RwLock<Handshake>,
     sessions: RwLock<ActiveSession>,
