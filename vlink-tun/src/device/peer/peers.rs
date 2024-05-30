@@ -11,6 +11,7 @@ use crate::device::peer::monitor::PeerMetrics;
 use crate::device::peer::Peer;
 use crate::device::peer::session::{Session, SessionIndex};
 use crate::{NativeTun, PeerStaticSecret};
+use crate::device::event;
 use crate::device::inbound::OutboundSender;
 
 struct PeerEntry {
@@ -26,16 +27,18 @@ pub(crate) struct PeerList {
     sessions: SessionIndex,
     ips: CidrTable<Arc<Peer>>,
     peers: HashMap<[u8; 32], PeerEntry>,
+    event_pub: event::DevicePublisher,
 }
 
 impl PeerList {
-    pub fn new(token: CancellationToken, tun: NativeTun) -> Self {
+    pub fn new(token: CancellationToken, tun: NativeTun, event_pub: event::DevicePublisher) -> Self {
         Self {
             token,
             peers: HashMap::new(),
             sessions: SessionIndex::new(),
             ips: CidrTable::new(),
             tun,
+            event_pub,
         }
     }
 
@@ -107,6 +110,7 @@ impl PeerList {
                     persistent_keepalive_interval,
                     is_online,
                     ip_addr,
+                    self.event_pub.clone(),
                 ));
                 let handle = PeerHandle::spawn(
                     self.token.child_token(),

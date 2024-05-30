@@ -12,12 +12,15 @@ use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 use log::{debug, warn};
 use crate::{NativeTun, PeerStaticSecret, Tun};
+use crate::device::event;
+use crate::device::event::DeviceEvent;
 use crate::device::inbound::OutboundSender;
 use crate::noise::handshake::IncomingInitiation;
 use crate::noise::{crypto, protocol};
 use crate::device::peer::handshake::Handshake;
 use crate::device::peer::monitor::{PeerMetrics, PeerMonitor};
 use crate::device::peer::session::{ActiveSession, Session, SessionIndex};
+use crate::noise::crypto::PublicKey;
 
 #[derive(Debug)]
 pub(crate) enum OutboundEvent {
@@ -71,6 +74,7 @@ impl WatchOnline {
 /// 通过endpoint 发送数据
 /// udp-> peer
 pub struct Peer {
+    pub_key: PublicKey,
     tun: NativeTun,
     online: WatchOnline,
     monitor: PeerMonitor,
@@ -81,6 +85,7 @@ pub struct Peer {
     inbound: InboundTx,
     outbound: OutboundTx,
     ip_addr: String,
+    event_pub: event::DevicePublisher,
 }
 
 impl Peer {
@@ -94,13 +99,14 @@ impl Peer {
         persitent_keepalive_interval: Option<Duration>,
         is_online: bool,
         ip_addr: String,
+        event_pub: event::DevicePublisher,
     ) -> Self {
         let handshake = RwLock::new(Handshake::new(secret.clone(), session_index.clone()));
         let sessions = RwLock::new(ActiveSession::new(session_index));
         let monitor = PeerMonitor::new(persitent_keepalive_interval);
         let endpoint = RwLock::new(endpoint);
-        let (tx, rx) = watch::channel(is_online);
         Self {
+            pub_key: secret.public_key().clone(),
             tun,
             handshake,
             sessions,
@@ -110,6 +116,7 @@ impl Peer {
             monitor,
             online: WatchOnline::new(is_online),
             ip_addr,
+            event_pub,
         }
     }
     pub fn set_online(&self, val: bool) {
@@ -137,6 +144,11 @@ impl Peer {
             warn!("{} not able to handle inbound: {}", self, e);
         }
     }
+
+    pub fn pub_event(&self, event: DeviceEvent) {
+        let _ = self.event_pub.send(event);
+    }
+
     /// Stage outbound data to be sent to the peer
     #[inline]
     pub async fn stage_outbound(&self, buf: Vec<u8>) {

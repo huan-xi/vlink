@@ -17,7 +17,14 @@ message ToServer {
         PeerReport peer_report = 14;
         // 更新端点
         UpdateExtraEndpoint update_extra_endpoint = 15;
+
+        DevHandshakeComplete dev_handshake_complete = 20;
     }
+}
+
+message DevHandshakeComplete{
+    string target_pub_key = 1;
+    string proto = 2;
 }
 message UpdateExtraEndpoint {
     string proto = 1;

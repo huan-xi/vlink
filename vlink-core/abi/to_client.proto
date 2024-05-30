@@ -13,7 +13,16 @@ message ToClient {
         RespHandshake resp_handshake = 4;
         RespConfig resp_config = 5;
         BcPeerEnter peer_enter = 6;
+        BcUpdateExtraEndpoint update_extra_endpoint = 7;
+
+
     }
+}
+
+message BcUpdateExtraEndpoint {
+    string pub_key = 1;
+    string proto = 2;
+    string endpoint = 3;
 }
 message ToClientError {
     int32 code = 1;

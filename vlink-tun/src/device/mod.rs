@@ -5,7 +5,7 @@ use ip_network::{IpNetwork, Ipv4Network};
 use tokio_util::sync::CancellationToken;
 use crate::{LocalStaticSecret, Tun};
 use crate::errors::Error;
-use tokio::sync::{mpsc, Mutex as AsyncMutex};
+use tokio::sync::{broadcast, mpsc, Mutex as AsyncMutex};
 use log::debug;
 use crate::noise::handshake::Cookie;
 use crate::device::config::{DeviceConfig, PeerConfig};
@@ -33,6 +33,7 @@ pub mod transport;
 pub mod endpoint;
 mod crypto;
 mod cipher;
+pub mod event;
 
 struct Settings
 {
@@ -104,13 +105,15 @@ impl Device {
         let (port, socket_info) = UdpTransport::spawn(token.child_token(), cfg.port, tx.clone()).await?;
         let inbound = Inbound::new(tx.clone(), rx, socket_info);
         let settings = Mutex::new(Settings::new(inbound, cfg.private_key, cfg.fwmark));
-        let peers = Mutex::new(PeerList::new(token.child_token(), tun.clone()));
+        let (tx, _) = broadcast::channel(32);
+        let peers = Mutex::new(PeerList::new(token.child_token(), tun.clone(), tx.clone()));
         let inner = Arc::new(DeviceInner {
             tun_addr: tun.address()?,
             tun,
             peers,
             settings,
             rate_limiter: RateLimiter::new(u16::MAX),
+            event_pub: tx,
         });
         inner.reset_peers(cfg.peers.into_values().collect());
 
@@ -143,6 +146,7 @@ pub struct DeviceInner {
     settings: Mutex<Settings>,
     /// 对入口数据限流
     rate_limiter: RateLimiter,
+    pub event_pub: event::DevicePublisher,
 }
 
 impl DeviceInner {

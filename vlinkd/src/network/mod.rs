@@ -4,15 +4,19 @@ use std::time::Duration;
 
 use base64::Engine;
 use log::{error, info, warn};
+use log4rs::config;
 use tokio::sync::{Mutex, RwLock};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::time::timeout;
 
-use vlink_core::base64::decode_base64;
+use vlink_core::base64::{decode_base64, encode_base64};
+use vlink_core::proto::pb::abi::DevHandshakeComplete;
+use vlink_core::proto::pb::abi::to_server::ToServerData;
 use vlink_core::secret::VlinkStaticSecret;
 use vlink_tun::device::config::{ArgConfig, TransportConfig};
 use vlink_tun::device::Device;
 use vlink_tun::{InboundResult, Tun};
+use vlink_tun::device::event::DeviceEvent;
 
 use crate::client::VlinkClient;
 use crate::config::VlinkNetworkConfig;
@@ -157,13 +161,30 @@ impl VlinkNetworkManagerInner {
         let trans = config.transports.clone();
         let device = Device::new(config.tun_name, config.device_config).await?;
         let tx = device.inbound_tx();
-
+        let mut event_rx = device.event_pub.subscribe();
         self.device.write().await.replace(device);
+        //监听设备事件
+        let cc = self.client.clone();
+        tokio::spawn(async move {
+            while let Ok(e) = event_rx.recv().await {
+                match e {
+                    DeviceEvent::HandshakeComplete(data) => {
+                        // 发送握手完成
+                        let _ = cc.send(ToServerData::DevHandshakeComplete(DevHandshakeComplete {
+                            target_pub_key: encode_base64(data.pub_key.as_bytes()),
+                            proto: data.proto,
+                        })).await;
+                    }
+                }
+            }
+        });
+
+
         for cfg in trans {
             let txc = tx.clone();
             let cc = self.client.clone();
             tokio::spawn(async move {
-                if let Err(e) = start_extra_transport(cc,txc, cfg).await {
+                if let Err(e) = start_extra_transport(cc, txc, cfg).await {
                     error!("start extra transport error{e}")
                 }
             });
@@ -176,12 +197,10 @@ async fn start_extra_transport(cc: Arc<VlinkClient>, sender: Sender<InboundResul
     match cfg.proto.as_str() {
         "NatUdp" => {
             let param: NatUdpTransportParam = serde_json::from_str(&cfg.params)?;
-            let mut ts = NatUdpTransport::new(cc,sender, param).await?;
+            let mut ts = NatUdpTransport::new(cc, sender, param).await?;
             ts.start().await?;
         }
-        _ => {
-
-        }
+        _ => {}
     }
     Ok(())
 }

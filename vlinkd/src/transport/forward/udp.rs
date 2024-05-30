@@ -14,6 +14,7 @@ use tokio_util::sync::CancellationToken;
 use vlink_tun::device::transport::udp::UdpOutboundSender;
 use vlink_tun::{BoxCloneOutboundSender, InboundResult, OutboundSender};
 use crate::transport::nat2pub::reuse_socket::make_udp_socket;
+use crate::transport::nat_udp::PROTO_NAME;
 
 /// udp 转发
 ///
@@ -36,15 +37,16 @@ impl BoxCloneOutboundSender for UdpForwarderOutboundSender {
 
 impl Debug for UdpForwarderOutboundSender {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        Display::fmt(self, f)
     }
 }
 
 impl Display for UdpForwarderOutboundSender {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "UdpForwarderOutboundSender -> ({})", self.dst)
     }
 }
+
 #[async_trait]
 impl OutboundSender for UdpForwarderOutboundSender {
     async fn send(&self, data: &[u8]) -> Result<(), Error> {
@@ -54,6 +56,10 @@ impl OutboundSender for UdpForwarderOutboundSender {
 
     fn dst(&self) -> SocketAddr {
         self.dst
+    }
+
+    fn protocol(&self) -> String {
+        PROTO_NAME.to_string()
     }
 }
 

@@ -5,15 +5,16 @@ use crate::noise::protocol;
 use crate::noise::protocol::{COOKIE_REPLY_PACKET_SIZE, CookieReply, HANDSHAKE_RESPONSE_PACKET_SIZE, HandshakeResponse, TransportData};
 use crate::Tun;
 use crate::device::endpoint::Endpoint;
+use crate::device::event::{DeviceEvent, HandshakeComplete};
 use crate::device::inbound::OutboundSender;
 use crate::device::peer::Peer;
 use crate::device::peer::session::Session;
 
 pub(super) async fn handle_handshake_initiation(
     peer: Arc<Peer>,
-    endpoint:  Box<dyn OutboundSender>,
+    endpoint: Box<dyn OutboundSender>,
     initiation: IncomingInitiation,
-){
+) {
     peer.monitor
         .traffic()
         .inbound(protocol::HANDSHAKE_INITIATION_PACKET_SIZE);
@@ -37,7 +38,7 @@ pub(super) async fn handle_handshake_initiation(
 
 pub(super) async fn handle_handshake_response(
     peer: Arc<Peer>,
-    endpoint:  Box<dyn OutboundSender>,
+    endpoint: Box<dyn OutboundSender>,
     packet: HandshakeResponse,
     _session: Session,
 ) {
@@ -62,7 +63,15 @@ pub(super) async fn handle_handshake_response(
             peer.monitor.handshake().completed();
             info!("handshake completed");
             peer.update_endpoint(endpoint);
-            peer.stage_outbound(vec![]).await; // let the peer know the session is valid
+            if let Some(e) = peer.endpoint.read().unwrap().as_ref() {
+                let proto = e.protocol();
+                peer.pub_event(DeviceEvent::HandshakeComplete(HandshakeComplete {
+                    pub_key: peer.pub_key,
+                    proto,
+                }));
+            }
+            // let the peer know the session is valid
+            peer.stage_outbound(vec![]).await;
         }
         Err(e) => debug!("failed to finalize handshake: {e}"),
     }
@@ -70,7 +79,7 @@ pub(super) async fn handle_handshake_response(
 
 pub(super) async fn handle_cookie_reply(
     peer: Arc<Peer>,
-    _endpoint:  Box<dyn OutboundSender>,
+    _endpoint: Box<dyn OutboundSender>,
     _packet: CookieReply,
     _session: Session,
 ) {
@@ -80,7 +89,7 @@ pub(super) async fn handle_cookie_reply(
 /// 传输数据
 pub(super) async fn handle_transport_data(
     peer: Arc<Peer>,
-    endpoint:  Box<dyn OutboundSender>,
+    endpoint: Box<dyn OutboundSender>,
     packet: TransportData,
     session: Session,
 ) {

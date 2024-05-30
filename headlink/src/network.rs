@@ -6,6 +6,7 @@ use futures_util::SinkExt;
 use ip_network::{IpNetwork, Ipv4Network};
 use vlink_core::proto::pb::abi::to_client::ToClientData;
 use vlink_core::proto::pb::abi::ToClient;
+use crate::peer::VlinkPeer;
 use crate::server::{Peers, VlinkServer};
 
 #[derive(Clone)]
@@ -29,11 +30,11 @@ pub struct VlinkNetworkInner {
 }
 
 impl VlinkNetworkInner {
-    pub async fn broadcast(&self, data: ToClientData, exclude: Vec<String>) {
+    pub async fn broadcast_by<F>(&self, data: ToClientData, predict: F)
+        where F: Fn(&String, &VlinkPeer) -> bool {
         let mut task = vec![];
-
-        for (k,peer) in self.peers.read_lock().await.iter() {
-            if exclude.contains(k) {
+        for (k, peer) in self.peers.read_lock().await.iter() {
+            if !predict(k, peer) {
                 continue;
             }
             if let Some(s) = &peer.online_info {
@@ -45,5 +46,11 @@ impl VlinkNetworkInner {
             }
         }
         join_all(task).await;
+    }
+
+    pub async fn broadcast_to(&self, data: ToClientData, include: Vec<String>) {}
+
+    pub async fn broadcast(&self, data: ToClientData, exclude: Vec<String>) {
+        self.broadcast_by(data, |k, _| exclude.contains(&k)).await;
     }
 }

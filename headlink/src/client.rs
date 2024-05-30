@@ -175,7 +175,7 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
                 ctx: ctx.clone(),
             }, data).await {
                 // 发送错误
-                error!("处理数据错误:{:?}",e);
+                error!("处理数据错误:{}",e);
                 client.send(Some(id), ToClientData::Error(ToClientError {
                     code: e.code(),
                     msg: e.to_string(),

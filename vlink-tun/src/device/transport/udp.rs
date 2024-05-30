@@ -14,7 +14,7 @@ use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
 use crate::device::inbound::{BoxCloneOutboundSender, InboundResult, OutboundSender};
 use crate::device::transport::{Endpoint, Transport, TransportDispatcher, TransportInbound, TransportOutbound, TransportWrapper};
-
+pub const PROTO_NAME: &str = "Udp";
 /// UdpTransport is a UDP endpoint that implements the [`Transport`] trait.
 #[derive(Clone, Debug)]
 pub struct UdpTransport {
@@ -36,6 +36,7 @@ pub struct UdpOutboundSender {
     pub(crate) ipv4: Arc<UdpSocket>,
     pub(crate) ipv6: Arc<UdpSocket>,
 }
+
 
 impl BoxCloneOutboundSender for UdpOutboundSender {
     fn box_clone(&self) -> Box<dyn OutboundSender> {
@@ -69,13 +70,11 @@ impl OutboundSender for UdpOutboundSender {
     fn dst(&self) -> SocketAddr {
         self.dst.clone()
     }
-}
-/*pub struct UdpOutboundPacket {
-    addr: SocketAddr,
-    data: Vec<u8>,
-}
 
-impl OutboundPacket for UdpOutboundPacket {}*/
+    fn protocol(&self) -> String {
+        PROTO_NAME.to_string()
+    }
+}
 
 
 impl UdpTransport {

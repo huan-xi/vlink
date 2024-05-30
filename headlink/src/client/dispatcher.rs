@@ -9,7 +9,6 @@ use crate::client::error::ExecuteError;
 use crate::server::VlinkServer;
 
 
-
 pub struct Dispatcher {}
 
 pub struct ClientRequest {
@@ -57,6 +56,7 @@ impl Dispatcher {
         match data {
             ToServerData::PeerEnter(data) => data.execute(ctx).await,
             ToServerData::ReqConfig(data) => data.execute(ctx).await,
+            ToServerData::UpdateExtraEndpoint(data) => data.execute(ctx).await,
             _ => {
                 error!("Dispatcher::dispatch: unknown data type");
                 return Err(ExecuteError::StrMessage("Dispatcher::dispatch: unknown data type"));

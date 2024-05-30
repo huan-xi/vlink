@@ -11,6 +11,8 @@ use crate::device::transport::udp::{UdpOutboundSender, UdpSocketInfo, UdpTranspo
 pub trait OutboundSender: BoxCloneOutboundSender + Send + Sync + Debug + Display {
     async fn send(&self, data: &[u8]) -> Result<(), io::Error>;
     fn dst(&self) -> SocketAddr;
+
+    fn protocol(&self) -> String;
 }
 
 pub trait BoxCloneOutboundSender {

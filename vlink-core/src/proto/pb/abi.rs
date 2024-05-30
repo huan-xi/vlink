@@ -3,7 +3,7 @@
 pub struct ToServer {
     #[prost(uint64, tag="1")]
     pub id: u64,
-    #[prost(oneof="to_server::ToServerData", tags="2, 3, 10, 11, 12, 13, 14, 15")]
+    #[prost(oneof="to_server::ToServerData", tags="2, 3, 10, 11, 12, 13, 14, 15, 20")]
     pub to_server_data: ::core::option::Option<to_server::ToServerData>,
 }
 /// Nested message and enum types in `ToServer`.
@@ -28,7 +28,16 @@ pub mod to_server {
         /// 更新端点
         #[prost(message, tag="15")]
         UpdateExtraEndpoint(super::UpdateExtraEndpoint),
+        #[prost(message, tag="20")]
+        DevHandshakeComplete(super::DevHandshakeComplete),
     }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DevHandshakeComplete {
+    #[prost(string, tag="1")]
+    pub target_pub_key: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub proto: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UpdateExtraEndpoint {
@@ -81,7 +90,7 @@ pub struct ToClient {
     /// 通信id
     #[prost(uint64, tag="1")]
     pub id: u64,
-    #[prost(oneof="to_client::ToClientData", tags="2, 3, 4, 5, 6")]
+    #[prost(oneof="to_client::ToClientData", tags="2, 3, 4, 5, 6, 7")]
     pub to_client_data: ::core::option::Option<to_client::ToClientData>,
 }
 /// Nested message and enum types in `ToClient`.
@@ -98,7 +107,18 @@ pub mod to_client {
         RespConfig(super::RespConfig),
         #[prost(message, tag="6")]
         PeerEnter(super::BcPeerEnter),
+        #[prost(message, tag="7")]
+        UpdateExtraEndpoint(super::BcUpdateExtraEndpoint),
     }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BcUpdateExtraEndpoint {
+    #[prost(string, tag="1")]
+    pub pub_key: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub proto: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub endpoint: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ToClientError {
