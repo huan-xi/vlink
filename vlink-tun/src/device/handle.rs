@@ -7,9 +7,7 @@ use crate::noise::handshake::{Cookie, IncomingInitiation};
 use crate::noise::{Message, protocol};
 use crate::device::DeviceInner;
 use crate::device::peer::InboundEvent;
-use crate::device::endpoint::Endpoint;
 use crate::device::inbound::OutboundSender;
-use crate::device::transport::{Transport, TransportInbound};
 
 pub struct DeviceHandle {}
 

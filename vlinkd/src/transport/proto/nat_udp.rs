@@ -3,7 +3,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 
 use igd::PortMappingProtocol;
-use log::debug;
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
@@ -12,7 +12,6 @@ use tokio::sync::mpsc::Sender;
 use vlink_tun::{InboundResult, OutboundSender};
 use vlink_tun::device::event::{DeviceEvent, DevicePublisher, ExtraEndpointSuccess};
 use vlink_tun::device::peer::Peer;
-use vlink_tun::device::transport::Transport;
 
 use crate::client::VlinkClient;
 use crate::transport::forward::udp::UdpForwarder;
@@ -46,16 +45,15 @@ pub struct NatUdpTransportParam {
 
 
 
-/// b监听nat1 udp端口报告服务器,并开启udp数据转发器，将接受到的数据转到设备,作为服务端不主动发起连接
-/// a收到b nat1udp 端口,并开启udp数据转发器,也是将数据转到设备更新endpoint
+/// b监听nat1 udp端口报告服务器,并开启udp数据转发器->将udp数据转到tun设备，将接受到的数据转到设备,作为服务端不主动发起连接
+/// a收到b nat1udp 端口,开启udp数据转发器,也是将数据转到tun设备
 /// a收到to b endpoint后发起握手
-/// b收到握手包,更新 b to a endpoint
+/// b收到a握手包,更新 b to a endpoint
 /// ab 握手成功根据对方的endpoint 交换数据
 
 
 
 pub struct NatUdpTransport {
-    client: Arc<VlinkClient>,
     svc: NatService,
     sender: Sender<InboundResult>,
     forwarder: Option<UdpForwarder>,
@@ -63,8 +61,9 @@ pub struct NatUdpTransport {
 }
 
 impl NatUdpTransport {
-    pub async fn new(client: Arc<VlinkClient>, sender: Sender<InboundResult>,
-                     param: NatUdpTransportParam, event_pub: DevicePublisher) -> anyhow::Result<Self> {
+    pub async fn new(sender: Sender<InboundResult>,
+                     param: NatUdpTransportParam,
+                     event_pub: DevicePublisher) -> anyhow::Result<Self> {
         let svc = NatService::new(NatServiceParam {
             stun_servers: param.stun_servers,
             port: param.nat_port,
@@ -72,7 +71,6 @@ impl NatUdpTransport {
             upnp_broadcast_address: None,
         });
         Ok(Self {
-            client,
             sender,
             svc,
             forwarder: None,
@@ -85,8 +83,8 @@ impl NatUdpTransport {
         loop {
             if let Some(addr) = rx.recv().await {
                 let port = addr.port();
-                let wireguard_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port));
-                let forward = UdpForwarder::spawn(self.sender.clone(), port, wireguard_addr).await?;
+                // let wireguard_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port));
+                let forward = UdpForwarder::spawn(self.sender.clone(), port).await?;
                 self.forwarder = Some(forward);
                 //发送更新端点事件
                 let _ = self.event_pub.send(DeviceEvent::ExtraEndpointSuccess(ExtraEndpointSuccess {
@@ -111,21 +109,29 @@ pub struct NatUdpTransportClient {
 impl NatUdpTransportClient {
     pub async fn new(peer: Arc<Peer>, inbound_tx: mpsc::Sender<InboundResult>, endpoint: String) -> anyhow::Result<Self> {
         let local_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0));
-        let socket = Arc::new(make_udp_socket(local_addr)?);
+        let socket = UdpSocket::bind(local_addr).await?;
+        info!("bind udp socket:{}", socket.local_addr()?);
+        let socket = Arc::new(socket);
+        // let socket = Arc::new(make_udp_socket(local_addr)?);
         let dst: SocketAddr = endpoint.parse()?;
         // 接受数据
         let socket_c = socket.clone();
         tokio::spawn(async move {
-            let mut buf = [0u8; 10240];
-            let (n, addr) = socket_c.recv_from(&mut buf).await.unwrap();
-            debug!("recv from {},data:{n},dst:{dst}", addr);
-            let data = buf[..n].to_vec();
-            let _ = socket_c.send(&[]).await;
-            // 将数据转到设备
-            inbound_tx.send((data, Box::new(Ipv4UdpOutboundSender {
-                dst: addr,
-                socket: socket_c.clone(),
-            }))).await.unwrap();
+            let mut buf = [0u8; 2048];
+            loop {
+                let (n, addr) = socket_c.recv_from(&mut buf).await.unwrap();
+                if n == 0 {
+                    return ();
+                };
+                debug!("recv from {},data:{n},dst:{dst}", addr);
+                let data = buf[..n].to_vec();
+                let _ = socket_c.send(&[]).await;
+                // 将数据转到设备
+                inbound_tx.send((data, Box::new(Ipv4UdpOutboundSender {
+                    dst: addr,
+                    socket: socket_c.clone(),
+                }))).await.unwrap();
+            }
         });
 
 
@@ -152,6 +158,8 @@ pub mod test {
     use log::{error, info};
     use tokio::net::UdpSocket;
     use tokio::time;
+    use vlink_tun::device::event::DeviceEvent;
+    use vlink_tun::InboundResult;
 
     use crate::transport::proto::nat_udp::{NatUdpTransport, NatUdpTransportParam};
 
@@ -185,33 +193,52 @@ pub mod test {
         env_logger::init();
         let param = NatUdpTransportParam {
             stun_servers: vec![],
-            wireguard_port: 5523,
             nat_port: 5524,
         };
-        let port = param.wireguard_port;
 
         //模拟 wireguard
-        let local_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port));
-        let socket = UdpSocket::bind(local_addr).await?;
+        /* let local_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, port));
+         let socket = UdpSocket::bind(local_addr).await?;
+         tokio::spawn(async move {
+             let mut buf = [0u8; 1500];
+             loop {
+                 match socket.recv_from(&mut buf).await {
+                     Ok((size, addr)) => {
+                         let data = &buf[..size];
+                         let str = String::from_utf8_lossy(data);
+                         info!("recv from {},data:{}", addr,str);
+                         socket.send_to(&buf[..size], addr).await.unwrap();
+                     }
+                     Err(e) => {
+                         error!("recv error: {:?}", e);
+                     }
+                 }
+             }
+         });*/
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<InboundResult>(1024);
         tokio::spawn(async move {
-            let mut buf = [0u8; 1500];
             loop {
-                match socket.recv_from(&mut buf).await {
-                    Ok((size, addr)) => {
-                        let data = &buf[..size];
-                        let str = String::from_utf8_lossy(data);
-                        info!("recv from {},data:{}", addr,str);
-                        socket.send_to(&buf[..size], addr).await.unwrap();
+                let (data, endpoint) = rx.recv().await.unwrap();
+                info!("recv from {},data:{}", endpoint, String::from_utf8_lossy(&data));
+                tokio::spawn(async move {
+                    let mut interval = time::interval(Duration::from_secs(1));
+                    let mut count = 0;
+                    loop {
+                        let _ = endpoint.send(b"hello".to_vec().as_slice()).await;
+                        interval.tick().await;
+                        count += 1;
+                        if count > 10 {
+                            break;
+                        }
                     }
-                    Err(e) => {
-                        error!("recv error: {:?}", e);
-                    }
-                }
+                });
             }
         });
-        let (tx, rx) = tokio::sync::mpsc::channel(1024);
+        //broadcast::Sender<DeviceEvent>;
+        let (tx1, rx1) = tokio::sync::broadcast::channel::<DeviceEvent>(1024);
+
         // time::sleep(Duration::from_secs(100000)).await;
-        let mut a = NatUdpTransport::new(tx, param).await.unwrap();
+        let mut a = NatUdpTransport::new(tx, param, tx1).await.unwrap();
 
         a.start().await?;
         info!("{}", a);

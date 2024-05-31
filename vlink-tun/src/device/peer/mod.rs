@@ -193,7 +193,9 @@ impl Peer {
             self.endpoint.read().unwrap().as_ref().map(|e| e.box_clone())
         };
         if let Some(mut endpoint) = endpoint {
-            endpoint.send(buf).await.unwrap();
+            if let Err(e) = endpoint.send(buf).await {
+                warn!("{} not able to send outbound: {}", self, e);
+            }
         } else {
             debug!("no endpoint to send outbound packet to peer {self}");
         }

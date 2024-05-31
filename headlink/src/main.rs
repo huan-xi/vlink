@@ -13,7 +13,7 @@ struct Args {
     listen: Option<String>,
     /// 数据库连接
     #[arg(short, long)]
-    db_schame: Option<String>,
+    db_schema: Option<String>,
 }
 
 /// 流程,客户端连接
@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
     let tcp = TcpListener::bind(addr.as_str()).await?;
     //处理数据
     info!("Start listening on {}", addr.as_str());
-    let conn = open_db(args.db_schame.expect("db schema不能为空").as_str()).await;
+    let conn = open_db(args.db_schema.expect("db schema不能为空").as_str()).await;
 
 
     //广播器
@@ -56,7 +56,8 @@ async fn main() -> anyhow::Result<()> {
             if let Some(c) = cli {
                 if let Some(c) = c.client_id.get() {
                     if let Ok(network) = server_cc.get_network(c.network_id).await {
-                        network.peers.offline(&c.pub_key).await;
+                        network.offline(&c.pub_key).await;
+
                     }
                 }
             };

@@ -41,7 +41,7 @@ impl ToServerDataHandler for PeerEnter {
             last_con_type: None,
             mode: i32::from(ConnectionMode::Bidirectional),
             is_online: true,
-        }), vec![pub_key.clone()]).await;
+        }), pub_key.as_str()).await;
         Ok(())
     }
 }

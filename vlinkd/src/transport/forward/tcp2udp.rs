@@ -1,14 +1,17 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::sync::Arc;
 
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use vlink_tun::InboundResult;
 
 use crate::transport::nat2pub::reuse_socket::make_tcp_socket;
+use crate::transport::proto::nat_tcp::TcpOutboundSender;
 
 pub struct TcpForwarder {
     token: CancellationToken,
@@ -36,7 +39,7 @@ impl TcpForwarder {
         let socket = make_tcp_socket(local_addr)?;
         let listener = socket.listen(1024)?;
         let handler = async move {
-            if let Err(e) = handler0(listener,sender).await {
+            if let Err(e) = handler0(listener, sender).await {
                 error!("handler error:{}", e);
                 return Err(e);
             }
@@ -59,24 +62,30 @@ impl TcpForwarder {
     }
 }
 
-pub async fn handler0(listener: TcpListener, sender: Sender<InboundResult>) -> anyhow::Result<()> {
+pub async fn handler0(listener: TcpListener, inbound: Sender<InboundResult>) -> anyhow::Result<()> {
+
     loop {
         // let (stream, addr) = listener.accept().await;
         match listener.accept().await {
             Ok((mut stream, addr)) => {
                 info!("accept tcp stream:{}", addr);
-                //将数据转发至udp
+                let inbound_c = inbound.clone();
+                //将数据转发至inbound
                 tokio::spawn(async move {
-                    let (mut x, v) = stream.split();
-                    let mut buf = vec![0u8; 1024];
+                    // let inbound_cc = inbound_c.clone();
+                    let (mut x, v) = stream.into_split();
+                    let tcp_sender = TcpOutboundSender {
+                        dst: addr,
+                        writer: Arc::new(Mutex::new(v)),
+                    };
+                    let mut buf = vec![0u8; 10240];
                     loop {
                         if let Ok(n) = x.read(&mut buf).await {
                             if n <= 0 {
                                 break;
                             };
                             info!("read data:{}", String::from_utf8_lossy(&buf[..n]));
-
-                            //sender.send((buf[..n].to_vec(), Box::new(v))).await.unwrap();
+                            inbound_c.send((buf[..n].to_vec(), Box::new(tcp_sender.clone()))).await.unwrap();
                         } else {
                             //todo tcp 断开
                             break;

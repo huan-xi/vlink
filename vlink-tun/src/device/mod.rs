@@ -1,24 +1,25 @@
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr};
 use std::ops::Deref;
 use std::sync::{Arc, Mutex, RwLock};
-use ip_network::{IpNetwork, Ipv4Network};
-use tokio_util::sync::CancellationToken;
-use crate::{LocalStaticSecret, Tun};
-use crate::errors::Error;
-use tokio::sync::{broadcast, mpsc, Mutex as AsyncMutex};
+
+use ip_network::IpNetwork;
 use log::debug;
-use crate::noise::handshake::Cookie;
+use tokio::sync::{broadcast, mpsc, Mutex as AsyncMutex};
+use tokio_util::sync::CancellationToken;
+
+use crate::{LocalStaticSecret, Tun};
 use crate::device::config::{DeviceConfig, PeerConfig};
 use crate::device::handle::DeviceHandle;
 use crate::device::inbound::{Inbound, InboundResult};
-use crate::device::peer::cidr::Cidr;
 use crate::device::peer::Peer;
 use crate::device::peer::peers::PeerList;
 use crate::device::peer::session::Session;
 use crate::device::rate_limiter::RateLimiter;
-use crate::device::transport::{Transport, TransportDispatcher, TransportWrapper};
+// use crate::device::transport::{Transport, TransportDispatcher, TransportWrapper};
 use crate::device::transport::udp::UdpTransport;
-use crate::router::{Router};
+use crate::errors::Error;
+use crate::noise::handshake::Cookie;
+use crate::router::Router;
 use crate::tun::IFace;
 
 pub mod peer;

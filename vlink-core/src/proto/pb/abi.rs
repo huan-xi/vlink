@@ -92,7 +92,7 @@ pub struct ToClient {
     /// 通信id
     #[prost(uint64, tag="1")]
     pub id: u64,
-    #[prost(oneof="to_client::ToClientData", tags="2, 3, 4, 5, 6, 7")]
+    #[prost(oneof="to_client::ToClientData", tags="2, 3, 4, 5, 6, 7, 10")]
     pub to_client_data: ::core::option::Option<to_client::ToClientData>,
 }
 /// Nested message and enum types in `ToClient`.
@@ -110,8 +110,15 @@ pub mod to_client {
         #[prost(message, tag="6")]
         PeerEnter(super::BcPeerEnter),
         #[prost(message, tag="7")]
+        PeerLeave(super::BcPeerLevel),
+        #[prost(message, tag="10")]
         UpdateExtraEndpoint(super::BcUpdateExtraEndpoint),
     }
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BcPeerLevel {
+    #[prost(string, tag="1")]
+    pub pub_key: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BcUpdateExtraEndpoint {

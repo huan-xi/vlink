@@ -1,28 +1,24 @@
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
-use anyhow::anyhow;
 
+use anyhow::anyhow;
 use base64::Engine;
 use log::{debug, error, info, warn};
-use log4rs::config;
 use strum::{AsRefStr, EnumString};
 use tokio::sync::{Mutex, RwLock};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::time::timeout;
 
-use vlink_core::base64::{decode_base64, encode_base64};
-use vlink_core::proto::pb::abi::{DevHandshakeComplete, ExtraEndpoint};
-use vlink_core::proto::pb::abi::to_server::ToServerData;
+use vlink_core::base64::decode_base64;
 use vlink_core::rw_map::RwMap;
 use vlink_core::secret::VlinkStaticSecret;
+use vlink_tun::{InboundResult, Tun};
 use vlink_tun::device::config::{ArgConfig, TransportConfig};
 use vlink_tun::device::Device;
-use vlink_tun::{InboundResult, Tun};
-use vlink_tun::device::event::{DeviceEvent, DevicePublisher};
+use vlink_tun::device::event::DevicePublisher;
 
 use crate::client::VlinkClient;
 use crate::config::VlinkNetworkConfig;
@@ -235,6 +231,8 @@ impl VlinkNetworkManagerInner {
             let proto = ExtraProto::from_str(cfg.proto.as_str())
                 .map_err(|_| anyhow!("扩展协议:{}不支持",cfg.proto))?;
             let event_pub_c = event_bus.clone();
+
+            //插入,管理器
             tokio::spawn(async move {
                 // es_c.write_lock().await.insert(proto.clone(), ExtraProtoStatus { endpoint: None, running: true, error: None });
                 debug!("start extra transport:{:?}", cfg.proto);
@@ -247,6 +245,7 @@ impl VlinkNetworkManagerInner {
                     }
                 }
             });
+
         }
 
 
@@ -260,7 +259,7 @@ async fn start_extra_transport(cc: Arc<VlinkClient>,
     match cfg.proto.as_str() {
         "NatUdp" => {
             let param: NatUdpTransportParam = serde_json::from_str(&cfg.params)?;
-            let mut ts = NatUdpTransport::new(cc, sender, param, event_pub).await?;
+            let mut ts = NatUdpTransport::new( sender, param, event_pub).await?;
             ts.start().await?;
         }
         "NatTcp" => {

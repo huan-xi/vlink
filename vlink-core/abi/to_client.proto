@@ -13,10 +13,15 @@ message ToClient {
         RespHandshake resp_handshake = 4;
         RespConfig resp_config = 5;
         BcPeerEnter peer_enter = 6;
-        BcUpdateExtraEndpoint update_extra_endpoint = 7;
+        BcPeerLevel peer_leave = 7;
+        BcUpdateExtraEndpoint update_extra_endpoint = 10;
 
 
     }
+}
+
+message BcPeerLevel {
+    string pub_key = 1;
 }
 
 message BcUpdateExtraEndpoint {
@@ -62,7 +67,7 @@ message RespConfig {
     repeated ExtraTransport extra_transports = 11;
     repeated PeerExtraTransport peer_extra_transports = 12;
 }
-message PeerExtraTransport{
+message PeerExtraTransport {
     string target_pub_key = 1;
     string proto = 2;
     string endpoint = 3;

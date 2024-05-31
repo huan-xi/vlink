@@ -34,16 +34,21 @@ impl ExtTransportSelector {
                             peer_c.update_endpoint(e);
                         }
                         "NatTcp" => {
-                            let c = NatTcpTransportClient::new(peer_c.clone(), inbound_tx_c, e.endpoint.clone()).await.unwrap();
-                            let e = c.endpoint();
-                            info!("start endpoint success {e}");
-                            peer_c.update_endpoint(e);
+                            match NatTcpTransportClient::new(peer_c.clone(), inbound_tx_c, e.endpoint.clone()).await {
+                                Ok(c) => {
+                                    let e = c.endpoint();
+                                    info!("start endpoint success {e}");
+                                    peer_c.update_endpoint(e);
+                                }
+                                Err(e) => {
+                                    error!("start endpoint failed {e}");
+                                }
+                            }
                         }
                         _ => {
                             error!("not support proto {proto}");
                         }
                     }
-
                 }
                 //NatUdpTransportClient
             }

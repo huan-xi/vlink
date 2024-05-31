@@ -1,12 +1,40 @@
-兼容标准WireGuard协议的异地组网工具
-对标tailscale
+兼容标准WireGuard协议的异地组网工具对标tailscale
 
 服务器管理客户端秘钥达到0配置
 
-多种两节方式
-标准WireGuard协议子支持udp 协议,
+多种连接方式
+标准WireGuard协议只支持udp, 对于标准的WireGuard客户端，需要互联, 要么一方有公网，要么走服务器udp代理
 
-对于标准的WireGuard客户端，需要互联, 要么一方有公网，要么走服务器udp代理
+丰富的扩展协议
+
+1. udp(兼容标准WireGuard)
+2. tcp
+3. ws
+4. nat1_穿透(tcp,udp)
+5. 动态ip(dip),一方公网ip会动态变化
+6. udpForwarder-frp 通过frp穿透udp端口直连
+7.
+
+## 客户端端口转发
+
+### 功能介绍
+
+> 内网中只有主机A安装了一个vlinkd,想暴露主机B的80端口, 可以通过vlinkd 设置80端口转发到主机B 时得访问主机A的80端口等于访问主机B的80端口
+
+### 使用场景
+
+> 开发中 rds 数据库未暴露公网端口，只需要ecs上安装vlinkd 设置端口转发，则可以通过vlinkd访问rds数据库
+
+## nat1_穿透
+### 功能介绍
+> tcp穿透
+### 使用场景
+> 内网群晖想映射到公网，让外网访问群晖
+
+## acl 访问控制(未实现)
+
+> 通过acl控制访问权限
+
 
 udpForwarder
 ============
@@ -23,15 +51,6 @@ vlinkd
 ## 中继服务器链路合并
 
 # 端点连接协议
-
-1. udp(兼容标准WireGuard)
-2. tcp
-3. ws
-4. nat1_穿透
-5. auto
-6. udpForwarder-frp 通过frp穿透udp端口直连
-
-
 
 vlinkd
 与服务器建立连接，管理一个网络

@@ -25,17 +25,17 @@ impl Drop for UdpForwarder {
 }
 
 impl UdpForwarder {
-    pub async fn spawn(sender: Sender<InboundResult>, local_port: u16, target: SocketAddr) -> anyhow::Result<Self> {
-        info!("start udp forwarder,local_port:{},target:{}", local_port, target);
+    pub async fn spawn(sender: Sender<InboundResult>, local_port: u16) -> anyhow::Result<Self> {
+        info!("start udp forwarder,local_port:{}", local_port);
         let local_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, local_port));
         let socket = Arc::new(make_udp_socket(local_addr)?);
-        // let (tx1, rx1) = mpsc::channel(1024);
         let token = CancellationToken::new();
         let tx = sender.clone();
         let socket_c = socket.clone();
         let forward_handler = async move {
-            let mut buf = vec![0u8; 10240];
+            let mut buf = vec![0u8; 2048];
             loop {
+                // socket_c.recv_from();
                 let (n, addr) = match socket_c.recv_from(&mut buf).await {
                     Ok(e) => e,
                     Err(e) => {
