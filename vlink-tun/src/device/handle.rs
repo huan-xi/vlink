@@ -79,7 +79,7 @@ async fn tick_outbound(inner: Arc<DeviceInner>)
             }
 
             debug!("trying to send packet to {}", dst);
-            let peer = inner.peers.lock().unwrap().get_by_ip(dst);
+            let peer = inner.peers.read().unwrap().get_by_ip(dst);
 
             if let Some(peer) = peer {
                 debug!("sending packet[{}] to {dst}", buf.len());

@@ -1,6 +1,6 @@
 use std::ops::Deref;
 use std::sync::Arc;
-use log::error;
+use log::{debug, error};
 use vlink_core::proto::pb::abi::to_client::ToClientData;
 use crate::network::VlinkNetwork;
 use crate::client::handler::{ExecuteResult, ToServerDataHandler};
@@ -57,6 +57,7 @@ impl Dispatcher {
             ToServerData::PeerEnter(data) => data.execute(ctx).await,
             ToServerData::ReqConfig(data) => data.execute(ctx).await,
             ToServerData::UpdateExtraEndpoint(data) => data.execute(ctx).await,
+            ToServerData::DevHandshakeComplete(data) => data.execute(ctx).await,
             _ => {
                 error!("Dispatcher::dispatch: unknown data type");
                 return Err(ExecuteError::StrMessage("Dispatcher::dispatch: unknown data type"));

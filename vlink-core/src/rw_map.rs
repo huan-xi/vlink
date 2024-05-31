@@ -8,12 +8,20 @@ use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 //     Vacant(VacantEntry<'a, K, V, S>),
 // }
 
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct RwMap<K, V> {
     pub inter: Arc<RwLock<HashMap<K, V>>>,
 }
 
-impl<K: Eq+ Hash, V> From<Vec<(K, V)>> for RwMap<K, V> {
+impl<K, V> Clone for RwMap<K, V> {
+    fn clone(&self) -> Self {
+        RwMap {
+            inter: self.inter.clone(),
+        }
+    }
+}
+
+impl<K: Eq + Hash, V> From<Vec<(K, V)>> for RwMap<K, V> {
     fn from(value: Vec<(K, V)>) -> Self {
         RwMap {
             inter: Arc::new(RwLock::new(value.into_iter().collect())),

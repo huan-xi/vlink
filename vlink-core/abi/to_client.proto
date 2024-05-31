@@ -60,6 +60,13 @@ message RespConfig {
     optional string ipv6_addr = 6;
     repeated BcPeerEnter peers = 10;
     repeated ExtraTransport extra_transports = 11;
+    repeated PeerExtraTransport peer_extra_transports = 12;
+}
+message PeerExtraTransport{
+    string target_pub_key = 1;
+    string proto = 2;
+    string endpoint = 3;
+    int32 index = 4;
 }
 
 

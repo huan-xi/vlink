@@ -6,6 +6,7 @@ use futures_util::SinkExt;
 use ip_network::{IpNetwork, Ipv4Network};
 use vlink_core::proto::pb::abi::to_client::ToClientData;
 use vlink_core::proto::pb::abi::ToClient;
+use vlink_core::rw_map::RwMap;
 use crate::peer::VlinkPeer;
 use crate::server::{Peers, VlinkServer};
 
@@ -22,11 +23,23 @@ impl Deref for VlinkNetwork {
     }
 }
 
+/// 连接
+#[derive(Clone)]
+pub struct PeerConnect {
+    /// true 是正向
+    pub(crate) direction: bool,
+    pub(crate) proto: String,
+
+}
+
+
+
 pub struct VlinkNetworkInner {
     pub network_id: i64,
     pub cidr: Ipv4Network,
     // pub online_peers: HashSet<String>,
     pub peers: Peers,
+    pub connects: RwMap<String, PeerConnect>,
 }
 
 impl VlinkNetworkInner {
@@ -48,9 +61,14 @@ impl VlinkNetworkInner {
         join_all(task).await;
     }
 
-    pub async fn broadcast_to(&self, data: ToClientData, include: Vec<String>) {}
+    pub async fn broadcast_to(&self, data: ToClientData, include: Vec<String>) {
+        if include.is_empty() {
+            return;
+        }
+        self.broadcast_by(data, |k, _| include.contains(&k)).await;
+    }
 
     pub async fn broadcast(&self, data: ToClientData, exclude: Vec<String>) {
-        self.broadcast_by(data, |k, _| exclude.contains(&k)).await;
+        self.broadcast_by(data, |k, _| !exclude.contains(&k)).await;
     }
 }

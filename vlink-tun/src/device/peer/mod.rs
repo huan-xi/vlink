@@ -11,6 +11,7 @@ use std::sync::RwLock;
 use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 use log::{debug, warn};
+use tokio_util::sync::CancellationToken;
 use crate::{NativeTun, PeerStaticSecret, Tun};
 use crate::device::event;
 use crate::device::event::DeviceEvent;
@@ -61,6 +62,7 @@ pub struct WatchOnline {
     online_tx: watch::Sender<bool>,
 }
 
+
 impl WatchOnline {
     pub fn new(init: bool) -> Self {
         let (online_tx, online_rx) = watch::channel(init);
@@ -79,13 +81,22 @@ pub struct Peer {
     online: WatchOnline,
     monitor: PeerMonitor,
     handshake: RwLock<Handshake>,
-    sessions: RwLock<ActiveSession>,
+    pub sessions: RwLock<ActiveSession>,
     /// 连接端点, 用于发送数据
-    endpoint: RwLock<Option<Box<dyn OutboundSender>>>,
+    pub endpoint: RwLock<Option<Box<dyn OutboundSender>>>,
     inbound: InboundTx,
     outbound: OutboundTx,
     ip_addr: String,
     event_pub: event::DevicePublisher,
+
+    /// 可以取消和peer 相关的任务
+    token: CancellationToken,
+}
+
+impl Drop for Peer {
+    fn drop(&mut self) {
+        self.token.cancel();
+    }
 }
 
 impl Peer {
@@ -117,7 +128,11 @@ impl Peer {
             online: WatchOnline::new(is_online),
             ip_addr,
             event_pub,
+            token: Default::default(),
         }
+    }
+    pub fn child_token(&self) -> CancellationToken {
+        self.token.child_token()
     }
     pub fn set_online(&self, val: bool) {
         if let Err(e) = self.online.online_tx.send(val)

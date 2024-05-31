@@ -48,6 +48,7 @@ pub async fn request_for_config(client: Arc<VlinkClient>, private_key: [u8; 32],
             params: t.params.clone(),
         })
     }
+    //expected `Vec<PeerExtraTransport>`, but found `Vec<PeerExtraTransport>`
 
     let cfg = VlinkNetworkConfig {
         tun_name: None,
@@ -55,6 +56,7 @@ pub async fn request_for_config(client: Arc<VlinkClient>, private_key: [u8; 32],
         arg_config: args.clone(),
         transports,
         stun_servers: vec![],
+        peer_extra_transports: resp_config.peer_extra_transports.clone(),
     };
     Ok(cfg)
 }

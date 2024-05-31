@@ -13,6 +13,10 @@ pub trait OutboundSender: BoxCloneOutboundSender + Send + Sync + Debug + Display
     fn dst(&self) -> SocketAddr;
 
     fn protocol(&self) -> String;
+
+    fn writeable(&self) -> bool {
+        true
+    }
 }
 
 pub trait BoxCloneOutboundSender {

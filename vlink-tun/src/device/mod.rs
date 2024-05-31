@@ -1,6 +1,6 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ops::Deref;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use ip_network::{IpNetwork, Ipv4Network};
 use tokio_util::sync::CancellationToken;
 use crate::{LocalStaticSecret, Tun};
@@ -99,21 +99,20 @@ impl Device {
         //Cidr
         router.add_route(cfg.network.network_address(), IpAddr::V4(mask))?;
 
-        // wiretun::Device::with_udp(tun, cfg).await
         let token = CancellationToken::new();
         let (tx, rx) = mpsc::channel::<InboundResult>(1024);
         let (port, socket_info) = UdpTransport::spawn(token.child_token(), cfg.port, tx.clone()).await?;
         let inbound = Inbound::new(tx.clone(), rx, socket_info);
         let settings = Mutex::new(Settings::new(inbound, cfg.private_key, cfg.fwmark));
         let (tx, _) = broadcast::channel(32);
-        let peers = Mutex::new(PeerList::new(token.child_token(), tun.clone(), tx.clone()));
+        let peers = Arc::new(RwLock::new(PeerList::new(token.child_token(), tun.clone(), tx.clone())));
         let inner = Arc::new(DeviceInner {
             tun_addr: tun.address()?,
             tun,
             peers,
             settings,
             rate_limiter: RateLimiter::new(u16::MAX),
-            event_pub: tx,
+            event_bus: tx,
         });
         inner.reset_peers(cfg.peers.into_values().collect());
 
@@ -126,6 +125,8 @@ impl Device {
         })
     }
 
+    /// 用于向设备输入数据
+    /// 扩展协议可以将数据直接输入到设备
     pub fn inbound_tx(&self) -> mpsc::Sender<InboundResult> {
         self.inner.settings.lock().unwrap().inbound.tx.clone()
     }
@@ -142,30 +143,31 @@ impl Deref for Device {
 pub struct DeviceInner {
     pub tun: crate::NativeTun,
     pub tun_addr: Ipv4Addr,
-    peers: Mutex<PeerList>,
+    pub peers: Arc<RwLock<PeerList>>,
     settings: Mutex<Settings>,
     /// 对入口数据限流
     rate_limiter: RateLimiter,
-    pub event_pub: event::DevicePublisher,
+    /// 设备事件总线
+    pub event_bus: event::DevicePublisher,
 }
 
 impl DeviceInner {
     #[inline]
     pub fn get_peer_by_key(&self, public_key: &[u8; 32]) -> Option<Arc<Peer>> {
-        let index = self.peers.lock().unwrap();
+        let index = self.peers.read().unwrap();
         index.get_by_key(public_key)
     }
 
     #[inline]
     pub fn get_session_by_index(&self, i: u32) -> Option<(Session, Arc<Peer>)> {
-        let index = self.peers.lock().unwrap();
+        let index = self.peers.read().unwrap();
         index.get_session_by_index(i)
     }
 
     #[inline]
     pub fn reset_peers(&self, peers: Vec<PeerConfig>) {
         let settings = self.settings.lock().unwrap();
-        let mut index = self.peers.lock().unwrap();
+        let mut index = self.peers.write().unwrap();
         index.clear();
         for p in peers {
             let mut secret = settings.secret.clone().with_peer(p.public_key);
@@ -181,7 +183,7 @@ impl DeviceInner {
     #[inline]
     pub fn insert_peer(&self, cfg: PeerConfig) {
         let settings = self.settings.lock().unwrap();
-        let mut index = self.peers.lock().unwrap();
+        let mut index = self.peers.write().unwrap();
         let mut secret = settings.secret.clone().with_peer(cfg.public_key);
         if let Some(psk) = cfg.preshared_key {
             secret.set_psk(psk);

@@ -1,32 +1,41 @@
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::ops::Deref;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use anyhow::anyhow;
 
 use base64::Engine;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use log4rs::config;
+use strum::{AsRefStr, EnumString};
 use tokio::sync::{Mutex, RwLock};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::time::timeout;
 
 use vlink_core::base64::{decode_base64, encode_base64};
-use vlink_core::proto::pb::abi::DevHandshakeComplete;
+use vlink_core::proto::pb::abi::{DevHandshakeComplete, ExtraEndpoint};
 use vlink_core::proto::pb::abi::to_server::ToServerData;
+use vlink_core::rw_map::RwMap;
 use vlink_core::secret::VlinkStaticSecret;
 use vlink_tun::device::config::{ArgConfig, TransportConfig};
 use vlink_tun::device::Device;
 use vlink_tun::{InboundResult, Tun};
-use vlink_tun::device::event::DeviceEvent;
+use vlink_tun::device::event::{DeviceEvent, DevicePublisher};
 
 use crate::client::VlinkClient;
 use crate::config::VlinkNetworkConfig;
 use crate::handler;
 use crate::handler::first_connected::request_for_config;
 use crate::network::ctrl::NetworkCtrlCmd;
-use crate::transport::nat_udp::{NatUdpTransport, NatUdpTransportParam};
+use crate::transport::ext_transport_selector::ExtTransportSelector;
+use crate::transport::proto::nat_tcp::{NatTcpTransport, NatTcpTransportParam};
+use crate::transport::proto::nat_udp::{NatUdpTransport, NatUdpTransportParam};
 
 pub mod ctrl;
 pub mod types;
+mod device_handler;
 
 pub enum NetworkStatus {
     Running,
@@ -39,12 +48,28 @@ pub struct VlinkNetworkManager {
     inner: Arc<VlinkNetworkManagerInner>,
 }
 
+#[derive(Hash, PartialEq, Eq, Clone, AsRefStr, EnumString)]
+pub enum ExtraProto {
+    NatUdp,
+    NatTcp,
+}
 
+#[derive(Clone)]
+pub struct ExtraProtoStatus {
+    pub endpoint: Option<String>,
+    running: bool,
+    error: Option<String>,
+}
+
+#[derive(Clone)]
 pub struct VlinkNetworkManagerInner {
     client: Arc<VlinkClient>,
     rx: Arc<Mutex<Receiver<NetworkCtrlCmd>>>,
     secret: VlinkStaticSecret,
     device: Arc<RwLock<Option<Device>>>,
+    /// 扩展协议自动选择器
+    extra_selector: RwMap<String, ExtTransportSelector>,
+    extra_status: RwMap<ExtraProto, ExtraProtoStatus>,
     // status: RwLock<NetworkStatus>,
 }
 
@@ -58,6 +83,8 @@ impl VlinkNetworkManager {
                 rx: Arc::new(Mutex::new(rx)),
                 secret,
                 device: Arc::new(Default::default()),
+                extra_selector: Default::default(),
+                extra_status: RwMap::new(),
             }),
         }
     }
@@ -87,13 +114,15 @@ impl VlinkNetworkManagerInner {
             }
             Err(_) => {
                 //文件中读取上一次缓存,
-                todo!();
+                todo!("服务器连接失败,尝试重缓存文件读取配置");
             }
         };
         if let Some(cfg) = config {
             self.start_device(cfg).await?;
         }
-
+        /*
+         //todo 检查配置网段冲突
+        */
 
         //接受控制指令,操作device
         let client_c = self.client.clone();
@@ -125,7 +154,8 @@ impl VlinkNetworkManagerInner {
                     // device.insert_peer(c);
                 }
                 NetworkCtrlCmd::Connected => {
-                    handler::connected::handler_connected(client_c.clone(), device_c.clone(), &args).await?;
+                    let esc = self.extra_status.clone();
+                    handler::connected::handler_connected(client_c.clone(), device_c.clone(), &args, esc).await?;
                     // send_enter(&self.client, &device, &config.arg_config).await?;
                 }
                 NetworkCtrlCmd::FirstConnected => {
@@ -138,19 +168,6 @@ impl VlinkNetworkManagerInner {
         }
 
         Ok(())
-
-
-        /* let config = self.config.write().unwrap().take().unwrap();
-         //todo 检查网段冲突
-
-         // 启动额外传输层
-         start_transports(&config.transports).await?;
-
-         info!("启动接口:{}",device.tun.name());
-         //上报设备信息
-         send_enter(&self.client, &device, &config.arg_config).await?;
-         let event_loop = {};
-        */
     }
 
     // async fn get_device(&self) -> anyhow::Result<dyn AsRef<Device>> {
@@ -159,45 +176,96 @@ impl VlinkNetworkManagerInner {
     async fn start_device(&self, config: VlinkNetworkConfig) -> anyhow::Result<()> {
         //启动peer 协议协商
         let trans = config.transports.clone();
+        let pets = config.peer_extra_transports.clone();
         let device = Device::new(config.tun_name, config.device_config).await?;
-        let tx = device.inbound_tx();
-        let mut event_rx = device.event_pub.subscribe();
+
+        let peers = device.peers.clone();
+        let inbound_tx = device.inbound_tx();
+        let mut event_bus = device.event_bus.clone();
+        let mut event_rx = device.event_bus.subscribe();
+
         self.device.write().await.replace(device);
         //监听设备事件
-        let cc = self.client.clone();
+
+        // 连接扩展端点
+        //去自动选扩展端点,主动发起连接
+        let mut map = HashMap::new();
+        pets.into_iter().for_each(|i| {
+            let e = map.entry(i.target_pub_key.clone()).or_insert(vec![]);
+            e.push(i);
+        });
+
+        for (k, ps) in map {
+            //switch_transport
+            let key = decode_base64(k.as_str())?;
+            let pub_key: [u8; 32] = key.try_into().map_err(|_| anyhow::anyhow!("error"))?;
+            let peer = peers.read().unwrap().get_by_key(&pub_key);
+            let inbound_tx_c = inbound_tx.clone();
+            if let Some(p) = peer {
+                //检测
+                info!("start endpoint selector");
+                {
+                    let mut wr = self.extra_selector.write_lock().await;
+                    let entry = wr.entry(k.to_string());
+
+                    let selector = entry.or_insert(ExtTransportSelector::new(p, inbound_tx_c, ps));
+                    //selector.insert(ps);
+                }
+                // self.device
+                // 节点健康检测?
+            };
+        }
+
+
+        let self_c = self.clone();
+
+
         tokio::spawn(async move {
             while let Ok(e) = event_rx.recv().await {
-                match e {
-                    DeviceEvent::HandshakeComplete(data) => {
-                        // 发送握手完成
-                        let _ = cc.send(ToServerData::DevHandshakeComplete(DevHandshakeComplete {
-                            target_pub_key: encode_base64(data.pub_key.as_bytes()),
-                            proto: data.proto,
-                        })).await;
-                    }
+                if let Err(err) = device_handler::handle_device_event(self_c.clone(), e).await {
+                    error!("handle device event error:{:?}", err);
                 }
             }
         });
-
-
+        // 启动扩展端点
         for cfg in trans {
-            let txc = tx.clone();
+            let txc = inbound_tx.clone();
             let cc = self.client.clone();
+            let es_c = self.extra_status.clone();
+            let proto = ExtraProto::from_str(cfg.proto.as_str())
+                .map_err(|_| anyhow!("扩展协议:{}不支持",cfg.proto))?;
+            let event_pub_c = event_bus.clone();
             tokio::spawn(async move {
-                if let Err(e) = start_extra_transport(cc, txc, cfg).await {
-                    error!("start extra transport error{e}")
+                // es_c.write_lock().await.insert(proto.clone(), ExtraProtoStatus { endpoint: None, running: true, error: None });
+                debug!("start extra transport:{:?}", cfg.proto);
+                if let Err(err) = start_extra_transport(cc, txc, cfg, event_pub_c).await {
+                    error!("start extra transport error {err}");
+                    if let Some(e) = es_c.write_lock().await.get_mut(&proto) {
+                        e.running = false;
+                        e.endpoint = None;
+                        e.error = Some(err.to_string());
+                    }
                 }
             });
         }
+
+
         Ok(())
     }
 }
 
-async fn start_extra_transport(cc: Arc<VlinkClient>, sender: Sender<InboundResult>, cfg: TransportConfig) -> anyhow::Result<()> {
+async fn start_extra_transport(cc: Arc<VlinkClient>,
+                               sender: Sender<InboundResult>,
+                               cfg: TransportConfig, event_pub: DevicePublisher) -> anyhow::Result<()> {
     match cfg.proto.as_str() {
         "NatUdp" => {
             let param: NatUdpTransportParam = serde_json::from_str(&cfg.params)?;
-            let mut ts = NatUdpTransport::new(cc, sender, param).await?;
+            let mut ts = NatUdpTransport::new(cc, sender, param, event_pub).await?;
+            ts.start().await?;
+        }
+        "NatTcp" => {
+            let param: NatTcpTransportParam = serde_json::from_str(&cfg.params)?;
+            let mut ts = NatTcpTransport::new(cc, sender, param, event_pub).await?;
             ts.start().await?;
         }
         _ => {}

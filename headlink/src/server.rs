@@ -110,6 +110,7 @@ impl ServerInner {
                         network_id: network.network_id,
                         cidr: network.cidr.parse()?,
                         peers: Peers::new(peers),
+                        connects: Default::default(),
                     }),
                 };
                 // 查询peers

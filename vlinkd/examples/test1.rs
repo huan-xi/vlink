@@ -22,7 +22,7 @@ pub mod test {
     use log::info;
     use tokio::time;
     use vlink_tun::device::config::TransportConfig;
-    use vlinkd::transport::nat_udp;
+    use vlinkd::transport::proto::nat_udp;
 
     #[test]
     pub fn test() {

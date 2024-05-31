@@ -27,7 +27,7 @@ pub mod to_server {
         PeerReport(super::PeerReport),
         /// 更新端点
         #[prost(message, tag="15")]
-        UpdateExtraEndpoint(super::UpdateExtraEndpoint),
+        UpdateExtraEndpoint(super::ExtraEndpoint),
         #[prost(message, tag="20")]
         DevHandshakeComplete(super::DevHandshakeComplete),
     }
@@ -40,7 +40,7 @@ pub struct DevHandshakeComplete {
     pub proto: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateExtraEndpoint {
+pub struct ExtraEndpoint {
     #[prost(string, tag="1")]
     pub proto: ::prost::alloc::string::String,
     #[prost(string, tag="2")]
@@ -71,6 +71,8 @@ pub struct PeerEnter {
     //// udp 端口
     #[prost(uint32, tag="3")]
     pub port: u32,
+    #[prost(message, repeated, tag="4")]
+    pub extra_endpoints: ::prost::alloc::vec::Vec<ExtraEndpoint>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PeerLeave {
@@ -174,6 +176,19 @@ pub struct RespConfig {
     pub peers: ::prost::alloc::vec::Vec<BcPeerEnter>,
     #[prost(message, repeated, tag="11")]
     pub extra_transports: ::prost::alloc::vec::Vec<ExtraTransport>,
+    #[prost(message, repeated, tag="12")]
+    pub peer_extra_transports: ::prost::alloc::vec::Vec<PeerExtraTransport>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PeerExtraTransport {
+    #[prost(string, tag="1")]
+    pub target_pub_key: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub proto: ::prost::alloc::string::String,
+    #[prost(string, tag="3")]
+    pub endpoint: ::prost::alloc::string::String,
+    #[prost(int32, tag="4")]
+    pub index: i32,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BcPeerEnter {

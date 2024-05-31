@@ -4,6 +4,7 @@ pub mod tun;
 pub mod noise;
 pub mod router;
 
+pub use crate::device::peer::peers::PeerList;
 
 pub use device::{
     Device, config::DeviceConfig, DeviceControl, config::PeerConfig,

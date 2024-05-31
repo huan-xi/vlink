@@ -1,0 +1,19 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Run vlinkd" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="run --package vlinkd --bin vlinkd  -- -s 192.168.3.180:9797 -t abc" />
+    <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+    <envs />
+    <option name="emulateTerminal" value="true" />
+    <option name="channel" value="DEFAULT" />
+    <option name="requiredFeatures" value="true" />
+    <option name="allFeatures" value="false" />
+    <option name="withSudo" value="true" />
+    <option name="buildTarget" value="REMOTE" />
+    <option name="backtrace" value="SHORT" />
+    <option name="isRedirectInput" value="false" />
+    <option name="redirectInputPath" value="" />
+    <method v="2">
+      <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+    </method>
+  </configuration>
+</component>

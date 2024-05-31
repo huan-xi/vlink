@@ -1,18 +1,24 @@
 use std::fmt::{Debug, Display, Formatter};
-use std::io::Error;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
-use async_trait::async_trait;
+
 use igd::PortMappingProtocol;
+use log::debug;
 use serde::{Deserialize, Serialize};
+use tokio::net::UdpSocket;
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
-use vlink_core::proto::pb::abi::to_server::ToServerData;
-use vlink_core::proto::pb::abi::UpdateExtraEndpoint;
+
+use vlink_tun::{InboundResult, OutboundSender};
+use vlink_tun::device::event::{DeviceEvent, DevicePublisher, ExtraEndpointSuccess};
+use vlink_tun::device::peer::Peer;
 use vlink_tun::device::transport::Transport;
-use vlink_tun::InboundResult;
+
 use crate::client::VlinkClient;
 use crate::transport::forward::udp::UdpForwarder;
 use crate::transport::nat2pub::nat_service::{NatService, NatServiceParam};
+use crate::transport::nat2pub::reuse_socket::make_udp_socket;
+use crate::transport::sender::udp_sender::Ipv4UdpOutboundSender;
 
 pub const PROTO_NAME: &str = "NatUdp";
 
@@ -29,17 +35,36 @@ pub struct NatUdpTransportParam {
 /// 第二种方案
 /// 直接设置wireguard udp成端口复用，用udp端口连接stun 服务器，获取公网地址，直接就穿透成功,
 /// 不需要端口转发
+///
 /// 第三种方案，直接转到device 的数据接收器
+
+/// 默认流程
+/// b监听udp,a监听udp
+/// ab 同时发送握手
+/// 假设a先收到b的握手包,更新a to b endpoint
+/// b收到a的握手包更新,更新b to a endpoint
+
+
+
+/// b监听nat1 udp端口报告服务器,并开启udp数据转发器，将接受到的数据转到设备,作为服务端不主动发起连接
+/// a收到b nat1udp 端口,并开启udp数据转发器,也是将数据转到设备更新endpoint
+/// a收到to b endpoint后发起握手
+/// b收到握手包,更新 b to a endpoint
+/// ab 握手成功根据对方的endpoint 交换数据
+
+
 
 pub struct NatUdpTransport {
     client: Arc<VlinkClient>,
     svc: NatService,
     sender: Sender<InboundResult>,
     forwarder: Option<UdpForwarder>,
+    event_pub: DevicePublisher,
 }
 
 impl NatUdpTransport {
-    pub async fn new(client: Arc<VlinkClient>, sender: Sender<InboundResult>, param: NatUdpTransportParam) -> anyhow::Result<Self> {
+    pub async fn new(client: Arc<VlinkClient>, sender: Sender<InboundResult>,
+                     param: NatUdpTransportParam, event_pub: DevicePublisher) -> anyhow::Result<Self> {
         let svc = NatService::new(NatServiceParam {
             stun_servers: param.stun_servers,
             port: param.nat_port,
@@ -51,6 +76,7 @@ impl NatUdpTransport {
             sender,
             svc,
             forwarder: None,
+            event_pub,
         })
     }
     pub async fn start(&mut self) -> anyhow::Result<()> {
@@ -62,48 +88,57 @@ impl NatUdpTransport {
                 let wireguard_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port));
                 let forward = UdpForwarder::spawn(self.sender.clone(), port, wireguard_addr).await?;
                 self.forwarder = Some(forward);
-                //发送更新端点
-                let _ = self.client.send(ToServerData::UpdateExtraEndpoint(UpdateExtraEndpoint {
+                //发送更新端点事件
+                let _ = self.event_pub.send(DeviceEvent::ExtraEndpointSuccess(ExtraEndpointSuccess {
                     proto: PROTO_NAME.to_string(),
                     endpoint: addr.to_string(),
-                })).await;
+                }));
             }
         }
 
 
-        /*        match rx {
-                    stun_format::SocketAddr::V4(ipv4, port) => {
-                        //监听svc端口绑定, 启动端口代理,监听本机xx端口, 收到数据转发到wiregard 端口
-                        let wireguard_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port));
-                        let forward = UdpToUdpForwarder::spawn(port, wireguard_addr);
-                        self.forwarder = Some(forward);
-
-                        // tokio::spawn()
-                        // udp_forward
-                        /*let local_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port));
-                        let socket = make_udp_socket(local_addr)?;
-                        tokio::spawn(async move {
-                            let mut buf = [0u8; 1500];
-                            loop {
-                                match socket.recv_from(&mut buf).await {
-                                    Ok((size, addr)) => {
-                                        let data = &buf[..size];
-                                        let str = String::from_utf8_lossy(data);
-                                        info!("recv from {},data:{}", addr,str);
-                                        socket.send_to(&buf[..size], addr).await.unwrap();
-                                    }
-                                    Err(e) => {
-                                        error!("recv error: {:?}", e);
-                                    }
-                                }
-                            }
-                        });*/
-                    }
-                    stun_format::SocketAddr::V6(_, _) => {
-                        return Err(anyhow::anyhow!("stun not support ipv6"));
-                    }
-                };*/
         Ok(())
+    }
+}
+
+pub struct NatUdpTransportClient {
+    dst: SocketAddr,
+    socket: Arc<UdpSocket>,
+
+}
+
+/// 客户端
+impl NatUdpTransportClient {
+    pub async fn new(peer: Arc<Peer>, inbound_tx: mpsc::Sender<InboundResult>, endpoint: String) -> anyhow::Result<Self> {
+        let local_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0));
+        let socket = Arc::new(make_udp_socket(local_addr)?);
+        let dst: SocketAddr = endpoint.parse()?;
+        // 接受数据
+        let socket_c = socket.clone();
+        tokio::spawn(async move {
+            let mut buf = [0u8; 10240];
+            let (n, addr) = socket_c.recv_from(&mut buf).await.unwrap();
+            debug!("recv from {},data:{n},dst:{dst}", addr);
+            let data = buf[..n].to_vec();
+            let _ = socket_c.send(&[]).await;
+            // 将数据转到设备
+            inbound_tx.send((data, Box::new(Ipv4UdpOutboundSender {
+                dst: addr,
+                socket: socket_c.clone(),
+            }))).await.unwrap();
+        });
+
+
+        Ok(Self {
+            dst,
+            socket,
+        })
+    }
+    pub fn endpoint(&self) -> Box<dyn OutboundSender> {
+        Box::new(Ipv4UdpOutboundSender {
+            dst: self.dst,
+            socket: self.socket.clone(),
+        }) as Box<dyn OutboundSender>
     }
 }
 
@@ -112,13 +147,13 @@ impl NatUdpTransport {
 pub mod test {
     use std::env;
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-    use std::sync::mpsc::channel;
     use std::time::Duration;
+
     use log::{error, info};
     use tokio::net::UdpSocket;
     use tokio::time;
-    use crate::transport::nat2pub::reuse_socket::make_udp_socket;
-    use crate::transport::nat_udp::{NatUdpTransport, NatUdpTransportParam};
+
+    use crate::transport::proto::nat_udp::{NatUdpTransport, NatUdpTransportParam};
 
     #[tokio::test]
     pub async fn test_send() -> anyhow::Result<()> {

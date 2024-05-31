@@ -6,6 +6,7 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use futures_util::{SinkExt, StreamExt, TryFutureExt};
 use log::{debug, error, info};
+use tap::TapFallible;
 use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::{broadcast, RwLock};
@@ -167,6 +168,7 @@ impl VlinkClient {
     pub async fn send(&self, data: ToServerData) -> anyhow::Result<u64> {
         let conn = self.get_conn().await?;
         conn.send(None, data).await
+            .tap_err(|e| error!("发送数据失败:{}", e))
     }
 }
 

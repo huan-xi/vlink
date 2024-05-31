@@ -16,17 +16,17 @@ message ToServer {
         // 上报信息
         PeerReport peer_report = 14;
         // 更新端点
-        UpdateExtraEndpoint update_extra_endpoint = 15;
+        ExtraEndpoint update_extra_endpoint = 15;
 
         DevHandshakeComplete dev_handshake_complete = 20;
     }
 }
 
-message DevHandshakeComplete{
+message DevHandshakeComplete {
     string target_pub_key = 1;
     string proto = 2;
 }
-message UpdateExtraEndpoint {
+message ExtraEndpoint {
     string proto = 1;
     string endpoint = 2;
 }
@@ -48,6 +48,7 @@ message PeerEnter {
     optional string endpoint_addr = 2;
     /// udp 端口
     uint32 port = 3;
+    repeated ExtraEndpoint extra_endpoints = 4;
 }
 message PeerLeave {}
 message PeerMessage {}

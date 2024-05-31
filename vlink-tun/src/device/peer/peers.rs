@@ -21,7 +21,7 @@ struct PeerEntry {
     handle: PeerHandle,
 }
 
-pub(crate) struct PeerList {
+pub struct PeerList {
     token: CancellationToken,
     tun: NativeTun,
     sessions: SessionIndex,
@@ -113,7 +113,7 @@ impl PeerList {
                     self.event_pub.clone(),
                 ));
                 let handle = PeerHandle::spawn(
-                    self.token.child_token(),
+                    peer.child_token(),
                     Arc::clone(&peer),
                     inbound_rx,
                     outbound_rx,

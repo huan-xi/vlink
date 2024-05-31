@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use futures_util::StreamExt;
 use ip_network::{IpNetwork, Ipv4Network};
@@ -5,7 +6,7 @@ use sea_orm::*;
 use sea_orm::ActiveValue::Set;
 use crate::client::dispatcher::{ClientRequest, RequestContext};
 use crate::client::handler::{ExecuteResult, ToServerDataHandler};
-use vlink_core::proto::pb::abi::{BcPeerEnter, ExtraTransport, ReqConfig, RespConfig};
+use vlink_core::proto::pb::abi::{BcPeerEnter, ExtraTransport, PeerExtraTransport, ReqConfig, RespConfig};
 use vlink_core::proto::pb::abi::to_client::ToClientData;
 use crate::client::error::ExecuteError;
 use crate::db::entity::prelude::{PeerActiveModel, PeerColumn, PeerEntity, PeerExtraTransportColumn, PeerExtraTransportEntity, PeerModel};
@@ -70,6 +71,25 @@ impl ToServerDataHandler for ReqConfig {
             }
         }).collect();
 
+        let mut extra_endpoints_map = HashMap::new();
+        for (k, v) in network.peers.read_lock().await.iter() {
+            if let Some(e) = v.online_info.clone() {
+                for (proto, end) in e.extra_endpoints.read_lock().await.iter() {
+                    extra_endpoints_map.insert(k.clone(), (proto.to_string(), end.to_string()));
+                }
+            }
+        };
+        let mut peer_extra_transports = vec![];
+        for (k, v) in extra_endpoints_map {
+            //todo 校验协议是否对该peer 可用
+            peer_extra_transports.push(PeerExtraTransport {
+                target_pub_key: k.to_string(),
+                proto: v.0,
+                endpoint: v.1,
+                index: 0,
+            });
+        }
+
         let resp = RespConfig {
             network_id: network.network_id,
             address: addr.into(),
@@ -79,6 +99,7 @@ impl ToServerDataHandler for ReqConfig {
             ipv6_addr: None,
             peers,
             extra_transports,
+            peer_extra_transports,
         };
         ctx.send_resp(ToClientData::RespConfig(resp)).await?;
         Ok(())

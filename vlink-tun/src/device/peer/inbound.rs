@@ -59,9 +59,8 @@ pub(super) async fn handle_handshake_response(
                 debug!("failed to complete handshake, session not found");
                 return;
             }
-
             peer.monitor.handshake().completed();
-            info!("handshake completed");
+            info!("handshake completed for {endpoint}");
             peer.update_endpoint(endpoint);
             if let Some(e) = peer.endpoint.read().unwrap().as_ref() {
                 let proto = e.protocol();

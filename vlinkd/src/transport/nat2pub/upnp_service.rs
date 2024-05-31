@@ -138,6 +138,7 @@ impl UpnpService {
             return Err(anyhow::anyhow!("upnp duration must > 60"));
         }
         let duration = self.options.duration - 10;
+        //结束前10秒上报
         let mut interval = time::interval(Duration::from_secs(duration.into()));
         loop {
             interval.tick().await;

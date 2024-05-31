@@ -4,15 +4,17 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
+use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
+use vlink_tun::InboundResult;
 
 use crate::transport::nat2pub::reuse_socket::make_tcp_socket;
 
-pub struct TcpToUdpForwarder {
+pub struct TcpForwarder {
     token: CancellationToken,
 }
 
-impl Drop for TcpToUdpForwarder {
+impl Drop for TcpForwarder {
     fn drop(&mut self) {
         self.token.cancel()
     }
@@ -26,15 +28,15 @@ pub struct NatUdpTransportParam {
     nat_port: u16,
 }
 
-impl TcpToUdpForwarder {
-    pub async fn spawn(local_port: u16, target: SocketAddr) -> anyhow::Result<Self> {
-        info!("start tcp forwarder,local_port:{},target:{}", local_port, target);
-        let local_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), local_port));
+impl TcpForwarder {
+    pub async fn spawn(local_port: u16, sender: Sender<InboundResult>) -> anyhow::Result<Self> {
+        info!("start tcp forwarder,local_port:{}", local_port);
+        let local_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, local_port));
         let token = CancellationToken::new();
         let socket = make_tcp_socket(local_addr)?;
         let listener = socket.listen(1024)?;
         let handler = async move {
-            if let Err(e) = handler0(listener).await {
+            if let Err(e) = handler0(listener,sender).await {
                 error!("handler error:{}", e);
                 return Err(e);
             }
@@ -57,7 +59,7 @@ impl TcpToUdpForwarder {
     }
 }
 
-pub async fn handler0(listener: TcpListener) -> anyhow::Result<()> {
+pub async fn handler0(listener: TcpListener, sender: Sender<InboundResult>) -> anyhow::Result<()> {
     loop {
         // let (stream, addr) = listener.accept().await;
         match listener.accept().await {
@@ -73,7 +75,10 @@ pub async fn handler0(listener: TcpListener) -> anyhow::Result<()> {
                                 break;
                             };
                             info!("read data:{}", String::from_utf8_lossy(&buf[..n]));
+
+                            //sender.send((buf[..n].to_vec(), Box::new(v))).await.unwrap();
                         } else {
+                            //todo tcp 断开
                             break;
                         }
                     }
@@ -85,3 +90,6 @@ pub async fn handler0(listener: TcpListener) -> anyhow::Result<()> {
 
     Ok(())
 }
+
+
+

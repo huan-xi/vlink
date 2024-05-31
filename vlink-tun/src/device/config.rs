@@ -59,7 +59,16 @@ pub struct TransportConfig {
     pub params: String,
 }
 
+/*#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PeerExtraTransport {
+    pub target_pub_key: String,
+    pub proto: String,
+    pub endpoint: String,
+    pub index: i32,
+}
+*/
 impl DeviceConfig {
+
     #[inline(always)]
     pub fn private_key(mut self, key: [u8; 32]) -> Self {
         self.private_key = key;

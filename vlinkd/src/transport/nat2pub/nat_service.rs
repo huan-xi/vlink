@@ -103,12 +103,13 @@ async fn stun_connect(protocol: igd::PortMappingProtocol, token: CancellationTok
 async fn stun_connect_tcp(token: CancellationToken, addr: SocketAddr, upnp_service: Arc<UpnpService>, tx: mpsc::Sender<SocketAddrV4>) -> anyhow::Result<()> {
     let time = std::time::Instant::now();
     let socket = make_tcp_socket(addr)?;
+    let port=socket.local_addr()?.port();
+    upnp_service.set_inner_port(port).await;
     //todo stun 服务器
     let stun_server: SocketAddr = "101.43.169.183:3478".parse().unwrap();
     let mut stream = socket.connect(stun_server).await?;
     info!("Connected to {}", stream.peer_addr().unwrap());
     info!("Local addr: {}", stream.local_addr().unwrap());
-
     let (mut reader, mut writer) = stream.split();
     let mut buf = [0u8; 28];
     let mut msg = stun_format::MsgBuilder::from(buf.as_mut_slice());

@@ -34,5 +34,6 @@ chrono = "0"
 mime = "0"
 sea-orm = "0"
 tap = "1.0.1"
+strum = {version = "0.26.1",features = ["derive"]}
 #dashmap = "5.5.3"
 

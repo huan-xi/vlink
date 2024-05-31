@@ -81,13 +81,11 @@ impl UdpTransport {
     pub(crate) async fn spawn(token: CancellationToken, port: u16, sender: Sender<InboundResult>) -> Result<(u16, UdpSocketInfo), io::Error> {
         // tokio::spawn()
         let mut udp = Self::bind(Ipv4Addr::UNSPECIFIED, Ipv6Addr::UNSPECIFIED, port).await?;
-        // let (tx, rx) = mpsc::channel::<InboundResult>(1024);
         let info = UdpSocketInfo {
             ipv4: udp.ipv4.clone(),
             ipv6: udp.ipv6.clone(),
         };
         //接受数据转到sender 中
-        // let txc = tx.clone();
         let ipv4c = udp.ipv4.clone();
         let ipv6c = udp.ipv6.clone();
         let inbound = async move {
@@ -223,15 +221,3 @@ impl Display for UdpTransport {
         )
     }
 }
-
-//
-// #[async_trait]
-// impl TransportOutbound for UdpTransport {
-//     async fn send_to(&self, data: &[u8], dst: SocketAddr) -> Result<(), io::Error> {
-//         match dst {
-//             SocketAddr::V4(_) => self.ipv4.send_to(data, dst).await?,
-//             SocketAddr::V6(_) => self.ipv6.send_to(data, dst).await?,
-//         };
-//         Ok(())
-//     }
-// }
