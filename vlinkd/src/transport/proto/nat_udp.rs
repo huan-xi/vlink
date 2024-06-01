@@ -13,10 +13,8 @@ use vlink_tun::{InboundResult, OutboundSender};
 use vlink_tun::device::event::{DeviceEvent, DevicePublisher, ExtraEndpointSuccess};
 use vlink_tun::device::peer::Peer;
 
-use crate::client::VlinkClient;
 use crate::transport::forward::udp::UdpForwarder;
 use crate::transport::nat2pub::nat_service::{NatService, NatServiceParam};
-use crate::transport::nat2pub::reuse_socket::make_udp_socket;
 use crate::transport::sender::udp_sender::Ipv4UdpOutboundSender;
 
 pub const PROTO_NAME: &str = "NatUdp";
@@ -119,18 +117,21 @@ impl NatUdpTransportClient {
         tokio::spawn(async move {
             let mut buf = [0u8; 2048];
             loop {
-                let (n, addr) = socket_c.recv_from(&mut buf).await.unwrap();
-                if n == 0 {
-                    return ();
-                };
-                debug!("recv from {},data:{n},dst:{dst}", addr);
-                let data = buf[..n].to_vec();
-                let _ = socket_c.send(&[]).await;
-                // 将数据转到设备
-                inbound_tx.send((data, Box::new(Ipv4UdpOutboundSender {
-                    dst: addr,
-                    socket: socket_c.clone(),
-                }))).await.unwrap();
+                match socket_c.recv_from(&mut buf).await {
+                    Ok((n, addr)) => {
+                        debug!("recv from {},data:{n},dst:{dst}", addr);
+                        let data = buf[..n].to_vec();
+                        // 将数据转到设备
+                        let _ = inbound_tx.send((data, Box::new(Ipv4UdpOutboundSender {
+                            dst: addr,
+                            socket: socket_c.clone(),
+                        }))).await;
+                    }
+                    Err(e) => {
+                        debug!("udp recv error: {:?}", e);
+                        break;
+                    }
+                }
             }
         });
 
@@ -152,12 +153,13 @@ impl NatUdpTransportClient {
 #[cfg(test)]
 pub mod test {
     use std::env;
-    use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+    use std::net::SocketAddr;
     use std::time::Duration;
 
-    use log::{error, info};
+    use log::info;
     use tokio::net::UdpSocket;
     use tokio::time;
+
     use vlink_tun::device::event::DeviceEvent;
     use vlink_tun::InboundResult;
 

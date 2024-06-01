@@ -27,7 +27,7 @@ pub struct NativeTun {
 }
 
 impl NativeTun {
-    pub fn new(name: Option<String>) -> Result<Self, Error> {
+    pub fn new(name: Option<String>, is_tap: bool) -> Result<Self, Error> {
         if let Some(n) = &name {
             if n.len() > 16 {
                 return Err(Error::InvalidName);
@@ -190,12 +190,5 @@ impl Tun for NativeTun {
         }
 
         Ok(())
-    }
-}
-
-impl IFace for NativeTun {
-    fn set_ip(&self, address: Ipv4Addr, mask: Ipv4Addr) -> io::Result<()> {
-        self.set_address(address)?;
-        self.set_netmask(mask)
     }
 }

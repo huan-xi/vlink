@@ -6,7 +6,7 @@ pub(crate) mod handler;
 mod handshake;
 mod inbound;
 
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::sync::RwLock;
 use std::time::Duration;
 use tokio::sync::{mpsc, watch};
@@ -88,10 +88,16 @@ pub struct Peer {
     outbound: OutboundTx,
     ip_addr: String,
     event_pub: event::DevicePublisher,
-
     /// 可以取消和peer 相关的任务
     token: CancellationToken,
 }
+
+impl Debug for Peer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Peer({})", self.ip_addr.as_str())
+    }
+}
+
 
 impl Drop for Peer {
     fn drop(&mut self) {
@@ -198,6 +204,7 @@ impl Peer {
             }
         } else {
             debug!("no endpoint to send outbound packet to peer {self}");
+            let _ = self.event_pub.send(DeviceEvent::NoEndpoint((self.pub_key.clone(),self.ip_addr.clone())));
         }
     }
     #[inline]

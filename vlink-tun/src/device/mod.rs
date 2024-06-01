@@ -20,7 +20,7 @@ use crate::device::transport::udp::UdpTransport;
 use crate::errors::Error;
 use crate::noise::handshake::Cookie;
 use crate::router::Router;
-use crate::tun::IFace;
+// use crate::tun::IFace;
 
 pub mod peer;
 mod handle;
@@ -81,12 +81,12 @@ impl Device {
     /// new 完之后会运行,通过token 手动取消
     /// 启动一个udp 端口
     pub async fn new(name: Option<String>, cfg: DeviceConfig) -> Result<Self, Error> {
-        let tun = crate::NativeTun::new(name).map_err(Error::Tun)?;
+        let tun = crate::NativeTun::new(name, false)?;
         tun.enabled(true)?;
         //设置ip,network
         let mask = match cfg.network {
             IpNetwork::V4(n) => n.full_netmask(),
-            IpNetwork::V6(n) => todo!("为实现ipv6"),
+            IpNetwork::V6(n) => todo!("未实现ipv6"),
         };
         debug!("set ip :{};{}",cfg.address,mask);
 
@@ -96,7 +96,6 @@ impl Device {
         tun.set_ip(cfg.address, mask)?;
         //设置网络路由
         let router = Router::new(tun.name().to_string());
-
         //Cidr
         router.add_route(cfg.network.network_address(), IpAddr::V4(mask))?;
 

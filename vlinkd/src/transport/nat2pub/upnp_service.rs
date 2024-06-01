@@ -6,11 +6,11 @@ use std::{
 };
 use std::net::SocketAddr;
 
-use anyhow::{Error, Result};
-use igd::{aio::search_gateway, AddPortError::PortInUse, Gateway, SearchOptions};
+use anyhow::Result;
+use igd::{AddPortError::PortInUse, aio::search_gateway, SearchOptions};
 use log::{error, info};
 use thiserror::Error;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 use tokio::time;
 use tokio_util::sync::CancellationToken;
 
@@ -38,6 +38,13 @@ pub struct UpnpService {
     /// 内部端口
     inner_port: Mutex<u16>,
     pub token: CancellationToken,
+}
+impl Drop for UpnpService {
+    fn drop(&mut self) {
+        self.token.cancel();
+        info!("upnp service drop");
+
+    }
 }
 
 impl UpnpService {

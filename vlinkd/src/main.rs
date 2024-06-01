@@ -75,7 +75,7 @@ pub async fn main() -> anyhow::Result<()> {
     //启动http 控制,ctrl
     start_http_server(args.listen_addr.clone(), ctrl.clone()).await?;
 
-    let mut network = VlinkNetworkManager::new(client, rx, secret.clone());
+    let network = VlinkNetworkManager::new(client, rx, secret.clone());
     network.start(ArgConfig {
         endpoint_addr: args.endpoint_addr,
         port: args.port,

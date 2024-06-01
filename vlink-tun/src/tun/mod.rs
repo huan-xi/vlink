@@ -16,6 +16,12 @@ mod linux;
 #[cfg(target_os = "linux")]
 pub use linux::NativeTun;
 
+#[cfg(windows)]
+mod windows;
+
+#[cfg(target_os = "windows")]
+pub use windows::NativeTun;
+
 #[cfg(unix)]
 mod unix;
 
@@ -35,8 +41,9 @@ pub trait Tun: Send + Sync + Clone {
 
     async fn recv(&self) -> Result<Vec<u8>, Error>;
     async fn send(&self, buf: &[u8]) -> Result<(), Error>;
+    fn set_ip(&self, address: Ipv4Addr, mask: Ipv4Addr) -> std::io::Result<()>{
+        self.set_address(address)?;
+        self.set_netmask(mask)
+    }
 }
 
-pub trait IFace {
-    fn set_ip(&self, address: Ipv4Addr, mask: Ipv4Addr) -> std::io::Result<()>;
-}

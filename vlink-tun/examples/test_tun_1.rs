@@ -139,3 +139,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tokio::signal::ctrl_c().await?;
     Ok(())
 }
+
+#[cfg(test)]
+pub mod test {
+    use std::iter::once;
+
+    #[test]
+    pub fn test() {
+        let str = "hello";
+        let a: Vec<u16> = str.encode_utf16().chain(once(0)).collect();
+        //[104, 101, 108, 108, 111]
+        // let a: Vec<u16> = str.encode_utf16().collect();
+        println!("{:?}", a);
+    }
+}

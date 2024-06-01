@@ -1,11 +1,12 @@
 use std::str::FromStr;
-use log::info;
+use log::{info, warn};
 use vlink_core::base64::encode_base64;
 use vlink_core::proto::pb::abi::{DevHandshakeComplete, ExtraEndpoint};
 use vlink_core::proto::pb::abi::to_server::ToServerData;
 use vlink_tun::device::event::DeviceEvent;
 use crate::network::{ExtraProto, ExtraProtoStatus, VlinkNetworkManagerInner};
 
+/// 通过设备产生的事件，去处理网络
 pub async fn handle_device_event(net: VlinkNetworkManagerInner, event: DeviceEvent) -> anyhow::Result<()> {
     let cc = net.client.clone();
     //处理设备事件
@@ -31,6 +32,14 @@ pub async fn handle_device_event(net: VlinkNetworkManagerInner, event: DeviceEve
                 endpoint: data.endpoint,
             })).await;
         }
+        DeviceEvent::SessionFailed(peer) => {
+            warn!("session failed:{:?}", peer);
+        }
+        DeviceEvent::NoEndpoint((pub_key, ip_addr)) => {
+            warn!("no endpoint for peer:{}", ip_addr.as_str());
+        }
+        //协议失败
+        _ => {}
     }
     Ok(())
 }

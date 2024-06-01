@@ -14,20 +14,17 @@ log4rs = "1.2.0"
 log = "0.4.17"
 serde = { workspace = true, features = ["derive"] }
 thiserror = "1.0.47"
-tun = { version = "0.5.5", features = ["async"] }
+#tun = { version = "0.5.5", features = ["async"] }
 num_enum = "0.7"
 async-trait = "0.1.73"
 crypto_box = { workspace = true }
+rand = "0.8.5"
 
 base64 = {workspace = true}
-[target.'cfg(any(target_os = "linux",target_os = "macos"))'.dependencies]
-sudo = "0.6.0"
-
 packet = "0.1.4"
 etherparse = "0.12.0"
 prost = "0.8" # 处理 protobuf 的代码
 #json
-serde = { version = "1.0.130", features = ["derive"] }
 serde_json = "1.0.68"
 pnet = "0.34.0"
 libc = "0.2.137"
@@ -37,6 +34,9 @@ tokio-util.workspace = true
 flate2 = "1"
 tokio = { version = "1.28.1", features = ["full"] }
 anyhow = "1" # 错误处理
+
+[target.'cfg(any(target_os = "linux",target_os = "macos"))'.dependencies]
+sudo = "0.6.0"
 #dashmap.workspace = true
 [dev-dependencies]
 async-prost = "0.2.1"

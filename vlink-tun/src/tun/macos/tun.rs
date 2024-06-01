@@ -11,7 +11,7 @@ use libc::{AF_INET, c_short, IFF_RUNNING, IFF_UP, IFNAMSIZ, SOCK_DGRAM};
 use regex::Regex;
 use tokio::io::unix::AsyncFd;
 use log::debug;
-use crate::tun::{Error, IFace};
+use crate::tun::{Error};
 use crate::Tun;
 use crate::tun::unix::{SockAddr};
 use super::sys;
@@ -39,7 +39,7 @@ pub struct NativeTun {
 }
 
 impl NativeTun {
-    pub fn new(name: Option<String>) -> Result<Self, Error> {
+    pub fn new(name: Option<String>, is_tap: bool) -> Result<Self, Error> {
         let idx = if let Some(name) = name {
             if name.len() > IFNAMSIZ {
                 return Err(Error::IO(io::Error::new(io::ErrorKind::InvalidInput, "name too long")));
@@ -229,13 +229,6 @@ impl Tun for NativeTun {
         }
 
         Ok(())
-    }
-}
-
-impl IFace for NativeTun {
-    fn set_ip(&self, address: Ipv4Addr, mask: Ipv4Addr) -> io::Result<()> {
-        self.set_address(address)?;
-        self.set_netmask(mask)
     }
 }
 

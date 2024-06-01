@@ -5,6 +5,7 @@ use tokio::task::JoinHandle;
 use tokio::time;
 use tokio_util::sync::CancellationToken;
 use log::{debug, info, warn};
+use crate::device::event::DeviceEvent;
 use crate::Tun;
 use crate::device::peer::{inbound, InboundEvent, InboundRx, OutboundEvent, OutboundRx, Peer};
 
@@ -131,9 +132,7 @@ async fn loop_handshake(token: CancellationToken, peer: Arc<Peer>)
             peer.monitor.handshake().initiated();
         }
 
-        debug!("Handshake loop for {peer} is sleep");
         time::sleep_until(peer.monitor.handshake().will_initiate_in().into()).await;
-        debug!("Handshake loop for {peer} is sleep end");
     }
     debug!("Handshake loop for {peer} is DOWN");
 }
@@ -170,7 +169,9 @@ async fn tick_outbound(peer: Arc<Peer>, data: Vec<u8>)
 {
     let session = { peer.sessions.read().unwrap().current().clone() };
     let session = if let Some(s) = session { s } else {
-        debug!("no session to send outbound packet to {peer}");
+        // debug!("no session to send outbound packet to {peer}");
+        debug!("目标地址{},未握手",peer.ip_addr);
+        peer.pub_event(DeviceEvent::SessionFailed(peer.clone()));
         return;
     };
 

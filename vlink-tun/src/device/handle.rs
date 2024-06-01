@@ -2,6 +2,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use log::{debug, error, warn};
+use tokio::task::JoinHandle;
 use crate::{LocalStaticSecret, Tun};
 use crate::noise::handshake::{Cookie, IncomingInitiation};
 use crate::noise::{Message, protocol};
@@ -9,7 +10,10 @@ use crate::device::DeviceInner;
 use crate::device::peer::InboundEvent;
 use crate::device::inbound::OutboundSender;
 
-pub struct DeviceHandle {}
+pub struct DeviceHandle {
+    inbound_loop: JoinHandle<()>,
+    outbound_loop: JoinHandle<()>,
+}
 
 impl DeviceHandle {
     /// 新建并挂起
@@ -20,10 +24,19 @@ impl DeviceHandle {
         let inbound_loop = tokio::spawn(loop_inbound(token.child_token(), inner.clone()));
         let outbound_loop = tokio::spawn(loop_outbound(token.child_token(), inner.clone()));
 
-        Self {}
+        Self {
+            inbound_loop,
+            outbound_loop,
+        }
     }
 }
 
+impl Drop for DeviceHandle {
+    fn drop(&mut self) {
+        self.inbound_loop.abort();
+        self.outbound_loop.abort();
+    }
+}
 /// 循环处理outbound
 async fn loop_outbound(token: CancellationToken, inner: Arc<DeviceInner>)
 

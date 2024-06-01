@@ -223,6 +223,7 @@ impl VlinkNetworkManagerInner {
                 }
             }
         });
+
         // 启动扩展端点
         for cfg in trans {
             let txc = inbound_tx.clone();
@@ -247,6 +248,9 @@ impl VlinkNetworkManagerInner {
             });
 
         }
+        // 无端点和扩展端点,使用中继协议
+
+
 
 
         Ok(())

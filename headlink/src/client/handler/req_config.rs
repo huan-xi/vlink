@@ -46,10 +46,12 @@ impl ToServerDataHandler for ReqConfig {
                 let mut model = self_peer.model.clone();
                 model.ip = Some(gen_ip.to_string());
                 PeerEntity::update(PeerActiveModel {
+                    id: Set(self_peer.model.id),
                     ip: Set(Some(gen_ip.to_string())),
-                    pub_key: Set(self_peer.model.pub_key.clone()),
+                    // pub_key: Set(self_peer.model.pub_key.clone()),
                     ..Default::default()
-                }).exec(ctx.conn())
+                })
+                    .exec(ctx.conn())
                     .await?;
 
                 network.peers.refresh_model(model).await;
