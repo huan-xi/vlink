@@ -61,14 +61,13 @@ pub(super) async fn handle_handshake_response(
             }
             peer.monitor.handshake().completed();
             info!("handshake completed for {endpoint}");
-            peer.update_endpoint(endpoint);
-            if let Some(e) = peer.endpoint.read().unwrap().as_ref() {
-                let proto = e.protocol();
-                peer.pub_event(DeviceEvent::HandshakeComplete(HandshakeComplete {
-                    pub_key: peer.pub_key,
-                    proto,
-                }));
-            }
+            peer.update_endpoint(endpoint.box_clone());
+
+            let proto = endpoint.protocol();
+            peer.pub_event(DeviceEvent::HandshakeComplete(HandshakeComplete {
+                pub_key: peer.pub_key,
+                proto,
+            }));
             // let the peer know the session is valid
             peer.stage_outbound(vec![]).await;
         }

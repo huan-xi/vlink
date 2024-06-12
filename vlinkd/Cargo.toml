@@ -9,6 +9,7 @@ edition = "2021"
 axum.workspace = true
 tap.workspace = true
 strum.workspace = true
+tailscale-derp={ path = "../derp/tailscale-derp" }
 derive-new = "0.6.0"
 igd = { version = "0.12.1", features = ["aio"] }
 stun-format = { version = "1.0.1", features = ["fmt", "rfc3489"] }

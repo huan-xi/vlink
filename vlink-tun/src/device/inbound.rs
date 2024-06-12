@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display};
+use std::fmt::{Debug, Display, Formatter};
 use std::io;
 use std::net::SocketAddr;
 use std::sync::Mutex;
@@ -19,11 +19,15 @@ pub trait OutboundSender: BoxCloneOutboundSender + Send + Sync + Debug + Display
     }
 }
 
+
+
+
 pub trait BoxCloneOutboundSender {
     fn box_clone(&self) -> Box<dyn OutboundSender>;
 }
 
 /// 需要接受数据和数据发送器
+/// 数据和发送器
 pub type InboundResult = (Vec<u8>, Box<dyn OutboundSender>);
 
 /// 设备的数据入口

@@ -169,8 +169,6 @@ async fn tick_outbound(peer: Arc<Peer>, data: Vec<u8>)
 {
     let session = { peer.sessions.read().unwrap().current().clone() };
     let session = if let Some(s) = session { s } else {
-        // debug!("no session to send outbound packet to {peer}");
-        debug!("目标地址{},未握手",peer.ip_addr);
         peer.pub_event(DeviceEvent::SessionFailed(peer.clone()));
         return;
     };

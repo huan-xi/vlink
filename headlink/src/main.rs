@@ -57,7 +57,6 @@ async fn main() -> anyhow::Result<()> {
                 if let Some(c) = c.client_id.get() {
                     if let Ok(network) = server_cc.get_network(c.network_id).await {
                         network.offline(&c.pub_key).await;
-
                     }
                 }
             };

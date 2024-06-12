@@ -1,3 +1,9 @@
 syntax = "proto3";
 
 package abi;
+
+message RequireReply {
+    string src = 1;
+    string proto = 2;
+    string server = 3;
+}

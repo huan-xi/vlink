@@ -1,6 +1,9 @@
-mod derp_client;
+pub mod derp_client;
 pub mod errors;
 mod derp_codec;
+pub use derp_codec::DerpResponse;
+pub use derp_codec::DerpRequest;
+
 mod derp_utils;
 mod ssl;
 mod test_nacl;

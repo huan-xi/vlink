@@ -11,18 +11,17 @@ use crate::network::{ExtraProto, ExtraProtoStatus};
 /// 处理客户端连接成功
 /// 上报端点
 ///
-pub async fn handler_connected(client: Arc<VlinkClient>, device: Arc<RwLock<Option<Device>>>, args: &ArgConfig, es: RwMap<ExtraProto, ExtraProtoStatus>) -> anyhow::Result<()> {
+pub async fn handler_connected(client: Arc<VlinkClient>, device: Arc<Device>, args: &ArgConfig, es: RwMap<ExtraProto, ExtraProtoStatus>) -> anyhow::Result<()> {
     let (ip, port) = {
         let get_info = |dev: &Device| {
             (dev.tun_addr.clone().to_string(), dev.port as u32)
         };
-        get_info(device.read().await.as_ref().ok_or(anyhow::anyhow!("device is none"))?)
+        get_info(device.as_ref())
     };
     //已启动的协议和端口
 
     let mut extra_endpoints = vec![];
     for (proto, v) in es.read_lock().await.iter() {
-
         if let Some(endpoint) = v.endpoint.clone() {
             extra_endpoints.push(ExtraEndpoint {
                 proto: proto.as_ref().to_string(),

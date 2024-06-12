@@ -6,6 +6,8 @@ mod peer_enter;
 mod update_extra_endpoint;
 mod dev_handshake_complete;
 mod helpers;
+mod peer_leave;
+mod peer_forward;
 
 pub type ExecuteResult = Result<(), ExecuteError>;
 

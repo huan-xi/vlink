@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package abi;
-
+import "common.proto";
 
 //客户端->服务端
 message ToClient {
@@ -14,11 +14,12 @@ message ToClient {
         RespConfig resp_config = 5;
         BcPeerEnter peer_enter = 6;
         BcPeerLevel peer_leave = 7;
+        RequireReply require_reply = 8;
         BcUpdateExtraEndpoint update_extra_endpoint = 10;
-
 
     }
 }
+
 
 message BcPeerLevel {
     string pub_key = 1;

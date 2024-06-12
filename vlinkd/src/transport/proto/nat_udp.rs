@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 
 use vlink_tun::{InboundResult, OutboundSender};
-use vlink_tun::device::event::{DeviceEvent, DevicePublisher, ExtraEndpointSuccess};
+use vlink_tun::device::event::{DeviceEvent, DevicePublisher, ExtraEndpoint};
 use vlink_tun::device::peer::Peer;
 
 use crate::transport::forward::udp::UdpForwarder;
@@ -85,7 +85,7 @@ impl NatUdpTransport {
                 let forward = UdpForwarder::spawn(self.sender.clone(), port).await?;
                 self.forwarder = Some(forward);
                 //发送更新端点事件
-                let _ = self.event_pub.send(DeviceEvent::ExtraEndpointSuccess(ExtraEndpointSuccess {
+                let _ = self.event_pub.send(DeviceEvent::ExtraEndpointSuccess(ExtraEndpoint {
                     proto: PROTO_NAME.to_string(),
                     endpoint: addr.to_string(),
                 }));

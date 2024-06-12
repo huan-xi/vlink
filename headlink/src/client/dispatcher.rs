@@ -55,6 +55,8 @@ impl Dispatcher {
     pub async fn dispatch(&self, ctx: ClientRequest, data: ToServerData) -> ExecuteResult {
         match data {
             ToServerData::PeerEnter(data) => data.execute(ctx).await,
+            ToServerData::PeerLeave(data) => data.execute(ctx).await,
+            ToServerData::PeerForward(data) => data.execute(ctx).await,
             ToServerData::ReqConfig(data) => data.execute(ctx).await,
             ToServerData::UpdateExtraEndpoint(data) => data.execute(ctx).await,
             ToServerData::DevHandshakeComplete(data) => data.execute(ctx).await,

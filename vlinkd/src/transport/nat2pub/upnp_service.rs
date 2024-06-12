@@ -9,9 +9,11 @@ use std::net::SocketAddr;
 use anyhow::Result;
 use igd::{AddPortError::PortInUse, aio::search_gateway, SearchOptions};
 use log::{error, info};
+use tap::TapFallible;
 use thiserror::Error;
 use tokio::sync::Mutex;
 use tokio::time;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Error, Debug)]
@@ -39,11 +41,11 @@ pub struct UpnpService {
     inner_port: Mutex<u16>,
     pub token: CancellationToken,
 }
+
 impl Drop for UpnpService {
     fn drop(&mut self) {
         self.token.cancel();
         info!("upnp service drop");
-
     }
 }
 
@@ -150,24 +152,27 @@ impl UpnpService {
         loop {
             interval.tick().await;
             if self.token.is_cancelled() {
+                error!("upnp service cancelled");
                 break;
             }
-            if let Some(port) = self.external_port.lock().await.clone() {
-                match self.add_port(port).await {
-                    Ok((gateway, ip)) => {
-                        if *ip.ip() != local_ip || gateway != pre_gateway {
-                            local_ip = ip.ip().clone();
-                            pre_gateway = gateway;
-                            info!("upnp add port {} > {}", gateway, ip);
-                            // watch.ok(SocketAddrV4::new(ip, port), gateway);
+            let _ = timeout(Duration::from_secs(2), async {
+                if let Some(port) = self.external_port.lock().await.clone() {
+                    match self.add_port(port).await {
+                        Ok((gateway, ip)) => {
+                            if *ip.ip() != local_ip || gateway != pre_gateway {
+                                local_ip = ip.ip().clone();
+                                pre_gateway = gateway;
+                                info!("upnp add port {} > {}", gateway, ip);
+                                // watch.ok(SocketAddrV4::new(ip, port), gateway);
+                            }
+                        }
+                        Err(err) => {
+                            local_ip = Ipv4Addr::UNSPECIFIED;
+                            error!("upnp error: {:?}", err);
                         }
                     }
-                    Err(err) => {
-                        local_ip = Ipv4Addr::UNSPECIFIED;
-                        error!("upnp error: {:?}", err);
-                    }
                 }
-            }
+            }).await.tap_err(|_| error!("upnp timeout"));
         }
         Ok(())
     }

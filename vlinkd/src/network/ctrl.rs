@@ -2,16 +2,18 @@ use std::ops::Deref;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Receiver;
 use vlink_core::proto::pb::abi::BcPeerEnter;
+use vlink_core::proto::pb::abi::to_client::ToClientData;
 
 #[derive(Debug)]
 pub enum NetworkCtrlCmd {
     /// 请求查看网络信息
     ReqInfo,
     ChangeIp,
-    PeerEnter(BcPeerEnter),
+    // PeerEnter(BcPeerEnter),
     FirstConnected,
     /// 重新加入网络
     Connected,
+    ToClientData(ToClientData),
 }
 
 #[derive(Clone)]

@@ -62,6 +62,11 @@ pub struct WatchOnline {
     online_tx: watch::Sender<bool>,
 }
 
+pub struct WatchEndpoint {
+    endpoint_rx: watch::Receiver<Option<Box<dyn OutboundSender>>>,
+    endpoint_tx: watch::Sender<Option<Box<dyn OutboundSender>>>,
+}
+
 
 impl WatchOnline {
     pub fn new(init: bool) -> Self {
@@ -76,13 +81,14 @@ impl WatchOnline {
 /// 通过endpoint 发送数据
 /// udp-> peer
 pub struct Peer {
-    pub_key: PublicKey,
+    pub pub_key: PublicKey,
     tun: NativeTun,
     online: WatchOnline,
     monitor: PeerMonitor,
     handshake: RwLock<Handshake>,
     pub sessions: RwLock<ActiveSession>,
     /// 连接端点, 用于发送数据
+    // pub endpoint: RwLock<Option<Box<dyn OutboundSender>>>,
     pub endpoint: RwLock<Option<Box<dyn OutboundSender>>>,
     inbound: InboundTx,
     outbound: OutboundTx,
@@ -204,13 +210,17 @@ impl Peer {
             }
         } else {
             debug!("no endpoint to send outbound packet to peer {self}");
-            let _ = self.event_pub.send(DeviceEvent::NoEndpoint((self.pub_key.clone(),self.ip_addr.clone())));
+            let _ = self.event_pub.send(DeviceEvent::NoEndpoint((self.pub_key.clone(), self.ip_addr.clone())));
         }
     }
     #[inline]
     pub fn update_endpoint(&self, endpoint: Box<dyn OutboundSender>) {
         let mut guard = self.endpoint.write().unwrap();
         let _ = guard.insert(endpoint);
+    }
+    pub fn clear_endpoint(&self) {
+        let mut guard = self.endpoint.write().unwrap();
+        let _ = guard.take();
     }
 }
 

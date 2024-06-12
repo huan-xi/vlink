@@ -22,7 +22,7 @@ fn main() {
     // config.type_attribute("ServiceResponse.response_data", "#[repr(u8)]");
     config
         .out_dir("src/proto/pb")
-        .compile_protos(&["abi/to_server.proto","abi/to_client.proto","abi/common.proto"], &["abi"])
+        .compile_protos(&["abi/common.proto","abi/to_server.proto","abi/to_client.proto"], &["abi"])
         .unwrap();
 
 }

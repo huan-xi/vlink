@@ -3,8 +3,8 @@ use tokio::sync::broadcast;
 use crate::device::peer::Peer;
 use crate::noise::crypto::PublicKey;
 
-#[derive(Clone, Debug)]
-pub struct ExtraEndpointSuccess {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExtraEndpoint {
     pub proto: String,
     pub endpoint: String,
 }
@@ -20,13 +20,15 @@ pub struct HandshakeComplete {
 pub enum DeviceEvent {
     HandshakeComplete(HandshakeComplete),
 
-    ExtraEndpointSuccess(ExtraEndpointSuccess),
+    ExtraEndpointSuccess(ExtraEndpoint),
     NoEndpoint((PublicKey, String)),
     /// 节点未握手
     SessionFailed(Arc<Peer>),
 
     /// 传输层协议失败
-    TransportFailed(Arc<Peer>),
+    TransportFailed(ExtraEndpoint),
+    /// endpoint 连接失败
+    PeerEndpointFailed(PublicKey),
     // HandshakeTimeout,
 }
 

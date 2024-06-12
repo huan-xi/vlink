@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package abi;
-
+import "common.proto";
 
 //客户端->服务端
 message ToServer {
@@ -9,16 +9,27 @@ message ToServer {
     oneof to_server_data {
         ReqHandshake handshake = 2;
         ReqConfig req_config = 3;
+        PeerForward peer_forward = 4;
         PeerEnter peer_enter = 10;
         PeerLeave peer_leave = 11;
         PeerChange peer_change = 12;
         PeerMessage peer_message = 13;
         // 上报信息
         PeerReport peer_report = 14;
+
         // 更新端点
-        ExtraEndpoint update_extra_endpoint = 15;
+        ExtraEndpoint update_extra_endpoint = 16;
 
         DevHandshakeComplete dev_handshake_complete = 20;
+
+    }
+}
+
+///节点转发
+message PeerForward {
+    string target_pub_key = 1;
+    oneof data {
+        RequireReply require_reply = 2;
     }
 }
 

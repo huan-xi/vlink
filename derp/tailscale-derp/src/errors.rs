@@ -1,6 +1,8 @@
 use std::str::FromStr;
 use native_tls::HandshakeError;
 use thiserror::Error;
+use tokio::sync::mpsc::error::SendError;
+use crate::derp_codec::DerpRequest;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -15,8 +17,8 @@ pub enum Error {
     #[error("Error {0}")]
     BoxError(#[from] Box<dyn std::error::Error + Send + Sync>),
     //HandshakeError<std::net::TcpStream>
-    #[error("HandshakeError {0}")]
-    HandshakeError(#[from] HandshakeError<std::net::TcpStream>),
+    #[error("WsHandshakeError {0}")]
+    WsHandshakeError(#[from] HandshakeError<std::net::TcpStream>),
     #[error("Error {0}")]
     ErrorMsg(String),
     // httparse::Error
@@ -36,17 +38,22 @@ pub enum Error {
     EncryptError,
     #[error("DecryptError")]
     DecryptError,
+    #[error("NotConnect")]
+    NotConnect,
+    #[error("SendError {0:?}")]
+    SendError(#[from] SendError<DerpRequest>),
+    #[error("HandshakeError")]
+    HandshakeError
 }
 
-impl Error {
+impl Error {}
 
-}
-
-impl From<String> for Error{
+impl From<String> for Error {
     fn from(value: String) -> Self {
         Error::ErrorMsg(value)
     }
 }
+
 impl FromStr for Error {
     type Err = ();
 

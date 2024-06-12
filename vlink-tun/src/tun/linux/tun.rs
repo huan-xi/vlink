@@ -13,7 +13,7 @@ use tokio::io::unix::AsyncFd;
 use log::debug;
 
 use crate::tun::linux::sys::{self, get_mtu, ioctl_tun_set_iff, set_mtu, set_nonblocking};
-use crate::tun::{Error, IFace};
+use crate::tun::{Error};
 use crate::Tun;
 use crate::tun::unix::SockAddr;
 

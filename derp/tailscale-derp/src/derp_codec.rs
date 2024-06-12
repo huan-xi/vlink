@@ -22,13 +22,20 @@ const KEY_LEN: usize = 32;
 // 	keepAlive      = 60 * time.Second
 // )
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ServerInfo {
+    version: u8,
+}
+
 /// 兼容ws 响应
 #[derive(Debug)]
 pub enum DerpResponse {
     ///ws 响应
     Ws,
     FrameServerKey([u8; 32]),
+    FrameRecvPacket(([u8; 32], Vec<u8>)),
     FrameKeepAlive,
+    ServerInfo(ServerInfo),
     Test,
 }
 
@@ -40,6 +47,7 @@ pub struct Header {
 
 pub enum DerpRequest {
     ClientInfo(ClientInfo),
+    SendPacket((Vec<u8>, Vec<u8>)),
     Test,
 }
 
@@ -96,8 +104,9 @@ pub enum CmdType {
     FrameServerInfo = 0x03,
     // 32B dest pub key + packet bytes
     FrameSendPacket = 0x04,
-
-// frameRecvPacket    = frameType(0x05) // v0/1: packet bytes, v2: 32B src pub key + packet bytes
+    //frameType(0x05) // v0/1: packet bytes, v2: 32B src pub key + packet bytes
+    FrameRecvPacket = 0x05,
+    // frameRecvPacket    =
 
     // no payload, no-op (to be replaced with ping/pong)
     FrameKeepAlive = 0x06,
@@ -159,7 +168,7 @@ impl DerpCodec {
     /// 解码derp 数据
     fn decode_frame(&mut self, header: Header, data: BytesMut) -> Result<Option<DerpResponse>, Error> {
         //readFrameHeader
-        info!("test:{:?}", header);
+        // info!("decode header:{:?}", header);
         match header.cmd_type {
             CmdType::FrameServerKey => {
                 info!("FrameServerKey");
@@ -176,11 +185,20 @@ impl DerpCodec {
                 //{"version":2}
                 let data = self.decrypt_data(data.iter().as_slice())?;
                 info!("FrameServerInfo :{}",String::from_utf8_lossy(data.as_slice()));
+                let server_info: ServerInfo = serde_json::from_slice(data.as_slice())
+                    .map_err(|_| Error::ErrorMsg("server info error".to_string()))?;
+                return Ok(Some(DerpResponse::ServerInfo(server_info)));
             }
             CmdType::FrameKeepAlive => {
                 return Ok(Some(DerpResponse::FrameKeepAlive));
             }
-
+            CmdType::FrameRecvPacket => {
+                let src_key = data[..KEY_LEN].try_into().unwrap();
+                let data = data[KEY_LEN..].to_vec();
+                return Ok(Some(DerpResponse::FrameRecvPacket((src_key, data))));
+                // let data = self.decrypt_data(data.iter().as_slice())?;
+                // info!("FrameRecvPacket :{}",String::from_utf8_lossy(data.iter().as_slice()));
+            }
             _ => {
                 info!("unknown frame type: {:?}", header.cmd_type);
             }
@@ -215,7 +233,7 @@ impl Decoder for DerpCodec {
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        info!("decode:{:?}", src.iter().as_slice());
+        // info!("decode:{:?}", src.iter().as_slice());
         if self.to_ws_response {
             //ws 响应阶段
             if let Some(response_len) = validate_server_response(src)? {
@@ -303,12 +321,22 @@ impl Encoder<DerpRequest> for DerpCodec {
                 buf.extend_from_slice(bytes.as_slice());
                 write_frame(dst, CmdType::FrameClientInfo, buf.as_ref());
             }
+
+            // 发送数据包到目标地址
+            DerpRequest::SendPacket((dst_key, data)) => {
+                //发送数据
+                let mut buf = BytesMut::with_capacity(KEY_LEN + data.len());
+                buf.extend_from_slice(dst_key.as_slice());
+                buf.extend_from_slice(data.as_slice());
+                write_frame(dst, CmdType::FrameSendPacket, buf.as_ref());
+            }
             DerpRequest::Test => {}
         }
         Ok(())
     }
 }
 
+/// cmd+len+data
 fn write_frame(dst: &mut BytesMut, cmd_type: CmdType, data: &[u8]) {
     dst.put_u8(cmd_type.into());
     dst.put_u32(data.len() as u32);

@@ -148,6 +148,7 @@ impl Device {
                 shutdown_event,
                 adapter,
                 name,
+                ip_info: Default::default(),
             })
         }
     }

@@ -155,8 +155,6 @@ async fn process_client(server: VlinkServer, client: ClientConnect, tx: broadcas
     let mut recv = tx.subscribe();
     debug!("握手成功,clientId:{:?}",client_id);
     let network = server.get_network(client_id.network_id).await?;
-    debug!("1");
-
     let ctx = Arc::new(RequestContext {
         client_id: client_id.clone(),
         server: server.clone(),

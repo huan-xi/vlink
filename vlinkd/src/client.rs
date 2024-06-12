@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 use std::time::Duration;
 use anyhow::anyhow;
 use base64::Engine;
@@ -13,7 +13,7 @@ use tokio::sync::{broadcast, RwLock};
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 use crate::connect::ClientConnect;
-use vlink_core::proto::pb::abi::ReqHandshake;
+use vlink_core::proto::pb::abi::{peer_forward, PeerForward, ReqHandshake, RequireReply};
 use vlink_core::proto::pb::abi::to_server::ToServerData;
 use vlink_core::proto::pb::abi::to_client::ToClientData;
 use crate::network::ctrl::{NetworkCtrl, NetworkCtrlCmd};
@@ -24,10 +24,10 @@ use crate::error::ClientError;
 pub struct VlinkClient {
     conn: Arc<RwLock<Option<ClientConnect>>>,
     tx: broadcast::Sender<ToClient>,
-    secret: VlinkStaticSecret,
+    pub secret: VlinkStaticSecret,
     ctrl: NetworkCtrl,
     server_addr: String,
-    token: CancellationToken,
+    pub token: CancellationToken,
     timeout: Duration,
 }
 
@@ -163,12 +163,20 @@ impl VlinkClient {
     async fn get_conn(&self) -> Result<ClientConnect, ClientError> {
         self.conn.read().await.clone().ok_or(ClientError::ServerNotConnected)
     }
-
+    pub async fn forward_to(&self, dst: String, data: peer_forward::Data) -> anyhow::Result<u64> {
+        self.send(ToServerData::PeerForward(PeerForward {
+            target_pub_key: dst,
+            data: Some(data),
+        })).await
+    }
 
     pub async fn send(&self, data: ToServerData) -> anyhow::Result<u64> {
         let conn = self.get_conn().await?;
         conn.send(None, data).await
             .tap_err(|e| error!("发送数据失败:{}", e))
+    }
+    pub fn subscribe(&self) -> broadcast::Receiver<ToClient> {
+        self.tx.subscribe()
     }
 }
 
@@ -179,12 +187,17 @@ async fn process_cmd(ctrl: NetworkCtrl, txc: broadcast::Sender<ToClient>) {
             let data = recv.recv().await;
             if let Ok(data) = data {
                 info!("处理数据:{:?}", data);
-                match data.to_client_data {
-                    Some(ToClientData::PeerEnter(e)) => {
-                        ctrl.send(NetworkCtrlCmd::PeerEnter(e)).await.unwrap();
-                    }
-                    _ => {}
+                if let Some(cmd) = data.to_client_data {
+                    let _ = ctrl.send(NetworkCtrlCmd::ToClientData(cmd)).await
+                        .tap_err(|e| error!("发送数据失败:{}", e));
                 }
+                // //PeerLeave
+                // match data.to_client_data {
+                //     Some(ToClientData::PeerEnter(e)) => {
+                //         ctrl.send(NetworkCtrlCmd::PeerEnter(e)).await.unwrap();
+                //     }
+                //     _ => {}
+                // }
             };
         }
     }

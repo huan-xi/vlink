@@ -8,12 +8,12 @@
 丰富的扩展协议
 
 1. udp(兼容标准WireGuard)
-2. tcp
-3. ws
-4. nat1_穿透(tcp,udp)
-5. 动态ip(dip),一方公网ip会动态变化
+2. tcp(保持连接)
+3. ws(可以nginx反向代理)
+4. nat1穿透(tcp,udp)
+5. 动态ip(dip),当公网ip动态变化时第一时间通知节点
 6. udpForwarder-frp 通过frp穿透udp端口直连
-7.
+7. tailscale derp (使用tailscale中继协议)
 
 ## 客户端端口转发
 
@@ -26,9 +26,13 @@
 > 开发中 rds 数据库未暴露公网端口，只需要ecs上安装vlinkd 设置端口转发，则可以通过vlinkd访问rds数据库
 
 ## nat1_穿透
+
 ### 功能介绍
+
 > tcp穿透
+
 ### 使用场景
+
 > 内网群晖想映射到公网，让外网访问群晖
 
 ## acl 访问控制(未实现)

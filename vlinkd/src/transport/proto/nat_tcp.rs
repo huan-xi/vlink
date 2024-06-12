@@ -1,17 +1,17 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error, Write};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use async_trait::async_trait;
 use igd::PortMappingProtocol;
-use log::{debug, info};
+use log::debug;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::OwnedWriteHalf;
 use tokio::net::TcpSocket;
 use tokio::sync::{mpsc, Mutex};
 use tokio::sync::mpsc::Sender;
-use vlink_tun::device::event::{DeviceEvent, DevicePublisher, ExtraEndpointSuccess};
+use vlink_tun::device::event::{DeviceEvent, DevicePublisher, ExtraEndpoint};
 use vlink_tun::device::peer::Peer;
 use vlink_tun::{BoxCloneOutboundSender, InboundResult, OutboundSender};
 use crate::client::VlinkClient;
@@ -56,19 +56,24 @@ impl NatTcpTransport {
         //启动nat 服务
         let sender_c = self.sender.clone();
         let mut rx = self.svc.start().await?;
+        let event_pub = self.event_pub.clone();
         loop {
             if let Some(addr) = rx.recv().await {
                 let port = addr.port();
-                let forward = TcpForwarder::spawn(port, sender_c.clone()).await?;
+                let forward = TcpForwarder::spawn(port,event_pub.clone(), sender_c.clone()).await?;
                 self.forwarder = Some(forward);
                 //发送更新端点事件
-                let _ = self.event_pub.send(DeviceEvent::ExtraEndpointSuccess(ExtraEndpointSuccess {
+                let _ = self.event_pub.send(DeviceEvent::ExtraEndpointSuccess(ExtraEndpoint {
                     proto: PROTO_NAME.to_string(),
                     endpoint: addr.to_string(),
                 }));
             }
         }
     }
+}
+
+pub struct NatTcpListener {
+
 }
 
 
@@ -79,6 +84,7 @@ pub struct NatTcpTransportClient {
 pub struct TcpOutboundSender<T: AsyncWriteExt> {
     pub(crate) dst: SocketAddr,
     pub(crate) writer: Arc<Mutex<T>>,
+    // pub is_closed: AtomicBool,
 }
 
 impl<T: AsyncWriteExt> Clone for TcpOutboundSender<T> {
@@ -141,13 +147,15 @@ impl NatTcpTransportClient {
         let sender_c = sender.clone();
         // let tx = Arc::new(tx);
         tokio::spawn(async move {
-            let mut buf = vec![0u8; 10240];
+            let mut buf = vec![0u8; 2048];
             while let Ok(n) = rh.read(&mut buf).await {
                 if n <= 0 {
                     break;
                 }
                 inbound_tx.send((buf[..n].to_vec(), Box::new(sender_c.clone()))).await.unwrap();
             }
+            //断开
+            *peer.endpoint.write().unwrap() = None;
         });
         Ok(Self {
             sender,
