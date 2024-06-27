@@ -29,9 +29,6 @@ use crate::network::cmd_handler::handle_to_client_data;
 use crate::network::ctrl::NetworkCtrlCmd;
 use crate::network::extra_transport::start_extra_transport;
 use crate::transport::ext_transport_selector::ExtTransportSelector;
-use crate::transport::proto::ddns::DdnsTransportParam;
-use crate::transport::proto::nat_tcp::{NatTcpTransport, NatTcpTransportParam};
-use crate::transport::proto::nat_udp::{NatUdpTransport, NatUdpTransportParam};
 use crate::transport::proto::relay_transport::RelayTransport;
 
 pub mod ctrl;
@@ -55,7 +52,7 @@ pub struct VlinkNetworkManager {
 pub enum ExtraProto {
     NatUdp,
     NatTcp,
-    Ddns,
+    Dip,
 }
 
 #[derive(Clone)]
@@ -75,6 +72,7 @@ pub struct VlinkNetworkManagerInner {
     extra_selector: RwMap<PublicKey, ExtTransportSelector>,
     /// extra 运行
     extra_status: RwMap<ExtraProto, ExtraProtoStatus>,
+    /// 中继传输层
     relay_transport: RwLock<Option<Arc<RelayTransport>>>,
     // status: RwLock<NetworkStatus>,
 }
@@ -229,10 +227,10 @@ impl VlinkNetworkManager {
 
 
         let self_c = self.clone();
-        let dev_c= device.clone();
+        let dev_c = device.clone();
         tokio::spawn(async move {
             while let Ok(e) = event_rx.recv().await {
-                if let Err(err) = device_handler::handle_device_event(self_c.clone(),dev_c.clone(), e).await {
+                if let Err(err) = device_handler::handle_device_event(self_c.clone(), dev_c.clone(), e).await {
                     error!("handle device event error:{:?}", err);
                 }
             }

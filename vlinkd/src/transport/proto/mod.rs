@@ -1,6 +1,6 @@
-pub mod nat_udp;
-pub mod nat_tcp;
-pub mod tailscale_derp;
-pub mod websocket;
-pub mod ddns;
-pub mod relay_transport;
+pub(crate) mod nat_udp;
+pub(crate) mod nat_tcp;
+pub(crate) mod tailscale_derp;
+pub(crate) mod websocket;
+pub(crate) mod relay_transport;
+pub(crate) mod dynamic_ip;

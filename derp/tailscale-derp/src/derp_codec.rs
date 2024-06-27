@@ -34,6 +34,9 @@ pub enum DerpResponse {
     Ws,
     FrameServerKey([u8; 32]),
     FrameRecvPacket(([u8; 32], Vec<u8>)),
+    /// PeerGoneReasonDisconnected = PeerGoneReasonType(0x00) // peer disconnected from this server
+    /// 	PeerGoneReasonNotHere      = PeerGoneReasonType(0x01) // server doesn't know about this peer, unexpected
+    FramePeerGonePacket(([u8; 32], u8)),
     FrameKeepAlive,
     ServerInfo(ServerInfo),
     Test,
@@ -112,23 +115,22 @@ pub enum CmdType {
     FrameKeepAlive = 0x06,
 // frameNotePreferred = frameType(0x07) // 1 byte payload: 0x01 or 0x00 for whether this is client's home node
 
-// framePeerGone is sent from server to client to signal that
-// a previous sender is no longer connected. That is, if A
-// sent to B, and then if A disconnects, the server sends
-// framePeerGone to B so B can forget that a reverse path
-// exists on that connection to get back to A. It is also sent
-// if A tries to send a CallMeMaybe to B and the server has no
-// record of B (which currently would only happen if there was
-// a bug).
-// framePeerGone = frameType(0x08) // 32B pub key of peer that's gone + 1 byte reason
-
+    // framePeerGone is sent from server to client to signal that
+    // a previous sender is no longer connected. That is, if A
+    // sent to B, and then if A disconnects, the server sends
+    // framePeerGone to B so B can forget that a reverse path
+    // exists on that connection to get back to A. It is also sent
+    // if A tries to send a CallMeMaybe to B and the server has no
+    // record of B (which currently would only happen if there was
+    // a bug).
+    // 32B pub key of peer that's gone + 1 byte reason
+    FramePeerGone = 0x08,
     // framePeerPresent is like framePeerGone, but for other
 // members of the DERP region when they're meshed up together.
 // framePeerPresent = frameType(0x09) // 32B pub key of peer that's connected + optional 18B ip:port (16 byte IP + 2 byte BE uint16 port)
 
     // 32B src pub key + 32B dst pub key + packet bytes
     FrameForwardPacket = 0x0a,
-
 
 // frameWatchConns is how one DERP node in a regional mesh
 // subscribes to the others in the region.
@@ -144,7 +146,7 @@ pub enum CmdType {
 // purposes, when clients end up on a non-ideal node)
 // frameClosePeer = frameType(0x11) // 32B pub key of peer to close.
 
-// framePing = frameType(0x12) // 8 byte ping payload, to be echoed back in framePong
+    FramePing = 0x12, // 8 byte ping payload, to be echoed back in framePong
 // framePong = frameType(0x13) // 8 byte payload, the contents of the ping being replied to
 
 // frameHealth is sent from server to client to tell the client
@@ -198,6 +200,10 @@ impl DerpCodec {
                 return Ok(Some(DerpResponse::FrameRecvPacket((src_key, data))));
                 // let data = self.decrypt_data(data.iter().as_slice())?;
                 // info!("FrameRecvPacket :{}",String::from_utf8_lossy(data.iter().as_slice()));
+            }
+            CmdType::FramePeerGone => {
+                info!("FramePeerGone:{:?}",data);
+                return Ok(Some(DerpResponse::FramePeerGonePacket((data[..KEY_LEN].try_into().unwrap(), data[KEY_LEN]))));
             }
             _ => {
                 info!("unknown frame type: {:?}", header.cmd_type);

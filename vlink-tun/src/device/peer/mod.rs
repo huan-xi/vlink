@@ -146,6 +146,9 @@ impl Peer {
     pub fn child_token(&self) -> CancellationToken {
         self.token.child_token()
     }
+    pub fn is_online(&self) -> bool {
+        *self.online.online_rx.borrow()
+    }
     pub fn set_online(&self, val: bool) {
         if let Err(e) = self.online.online_tx.send(val)
         {
@@ -191,6 +194,9 @@ impl Peer {
     pub async fn keepalive(&self) {
         if !self.monitor.keepalive().can(self.monitor.traffic()) {
             debug!("{self} not able to send keepalive");
+            return;
+        }
+        if !self.is_online() {
             return;
         }
         self.monitor.keepalive().attempt();

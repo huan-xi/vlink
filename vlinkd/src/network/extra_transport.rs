@@ -7,7 +7,7 @@ use vlink_tun::device::event::DevicePublisher;
 use vlink_tun::InboundResult;
 use crate::client::VlinkClient;
 use crate::network::ExtraProto;
-use crate::transport::proto::ddns::DdnsTransportParam;
+use crate::transport::proto::dynamic_ip::DipParam;
 use crate::transport::proto::nat_tcp::{NatTcpTransport, NatTcpTransportParam};
 use crate::transport::proto::nat_udp::{NatUdpTransport, NatUdpTransportParam};
 
@@ -27,8 +27,8 @@ pub(crate) async fn start_extra_transport(cc: Arc<VlinkClient>,
             let mut ts = NatTcpTransport::new(cc, sender, param, event_pub).await?;
             ts.start().await?;
         }
-        ExtraProto::Ddns => {
-            let param: DdnsTransportParam = serde_json::from_str(&cfg.params)?;
+        ExtraProto::Dip => {
+            let param: DipParam = serde_json::from_str(&cfg.params)?;
 
         }
 

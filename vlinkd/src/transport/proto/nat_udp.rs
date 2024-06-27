@@ -75,6 +75,7 @@ impl NatUdpTransport {
             event_pub,
         })
     }
+
     pub async fn start(&mut self) -> anyhow::Result<()> {
         //启动nat 服务
         let mut rx = self.svc.start().await?;
@@ -91,8 +92,6 @@ impl NatUdpTransport {
                 }));
             }
         }
-
-
         Ok(())
     }
 }

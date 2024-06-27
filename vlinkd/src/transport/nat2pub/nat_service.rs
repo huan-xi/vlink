@@ -38,7 +38,6 @@ pub struct NatServiceParam {
     pub(crate) protocol: igd::PortMappingProtocol,
     /// upnp广播地址，默认内网广播
     pub upnp_broadcast_address: Option<SocketAddr>,
-
 }
 
 impl NatService {

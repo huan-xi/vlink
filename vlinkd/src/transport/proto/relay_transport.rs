@@ -31,6 +31,7 @@ pub struct DerpTask {
 /// 握手过程,
 #[derive(Clone)]
 pub struct RelayTransport {
+    ///中继服务器列表
     derp_client_map: RwMap<String, DerpTask>,
     client: Arc<VlinkClient>,
     inbound_sender: mpsc::Sender<InboundResult>,
@@ -115,14 +116,19 @@ impl RelayTransport {
                                 let txc = tx.clone();
                                 let c = async move {
                                     while let Some(Ok(resp)) = stream.next().await {
-                                        if let DerpResponse::FrameRecvPacket((src, data)) = resp {
-                                            // debug!("recv data from derp:{:?}", encode_base64(&data));
-                                            //来源pub
-                                            let _ = inbound.send((data, Box::new(TailscleDerpOutboundSender {
-                                                dst: src,
-                                                sender: tx.clone(),
-                                            }))).await;
-                                        };
+                                        match resp {
+                                            DerpResponse::FrameRecvPacket((src, data)) => {
+                                                // debug!("recv data from derp:{:?}", encode_base64(&data));
+                                                let _ = inbound.send((data, Box::new(TailscleDerpOutboundSender {
+                                                    dst: src,
+                                                    sender: tx.clone(),
+                                                }))).await;
+                                            }
+                                            DerpResponse::FramePeerGonePacket((src, reason)) => {
+                                                //todo 处理目标节点断开
+                                            }
+                                            _ => {}
+                                        }
                                     };
                                     // 连接断开
                                     //todo 发送传输层中断请求

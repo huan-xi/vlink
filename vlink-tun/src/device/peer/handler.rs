@@ -155,7 +155,9 @@ async fn loop_outbound(token: CancellationToken, peer: Arc<Peer>, mut rx: Outbou
                     Some(OutboundEvent::Data(data)) => {
                         tick_outbound(Arc::clone(&peer), data).await;
                     }
-                    None => break,
+                    None => {
+                        break;
+                    },
                 }
             }
         }

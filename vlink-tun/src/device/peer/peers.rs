@@ -98,8 +98,8 @@ impl PeerList {
             .peers
             .entry(secret.public_key().to_bytes())
             .or_insert_with(|| {
-                let (inbound_tx, inbound_rx) = mpsc::channel(2048);
-                let (outbound_tx, outbound_rx) = mpsc::channel(2048);
+                let (inbound_tx, inbound_rx) = mpsc::channel(32);
+                let (outbound_tx, outbound_rx) = mpsc::channel(32);
                 let peer = Arc::new(Peer::new(
                     self.tun.clone(),
                     secret,

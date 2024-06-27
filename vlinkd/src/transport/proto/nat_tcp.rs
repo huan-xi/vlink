@@ -133,7 +133,9 @@ impl<T: AsyncWriteExt + Send + Sync + Unpin + 'static> OutboundSender for TcpOut
 }
 
 impl NatTcpTransportClient {
-    pub async fn new(peer: Arc<Peer>, inbound_tx: mpsc::Sender<InboundResult>, endpoint: String) -> anyhow::Result<Self> {
+
+    /// 启动tcp 服务,并监听
+    pub async fn spawn(peer: Arc<Peer>, inbound_tx: mpsc::Sender<InboundResult>, endpoint: String) -> anyhow::Result<Self> {
         //建立tcp 连接
         let addr: SocketAddr = endpoint.clone().parse()?;
         let socket = TcpSocket::new_v4()?;

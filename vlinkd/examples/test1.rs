@@ -24,6 +24,12 @@ pub mod test {
     use vlink_tun::device::config::TransportConfig;
     use vlinkd::transport::proto::nat_udp;
 
+
+    pub fn test(c: &mut String) {
+        c = "abcd".to_string();
+    }
+
+
     #[test]
     pub fn test() {
         let a = TransportConfig {

@@ -10,13 +10,18 @@ use crate::transport::proto::nat_tcp::{NatTcpTransportClient, NatTcpTransportPar
 use crate::transport::proto::nat_udp::NatUdpTransportClient;
 use crate::transport::proto::relay_transport::RelayTransport;
 
+/// 协议选择器间隔
+const SELECTOR_INTERVAL: u64 = 10;
+
 /// 扩展传输层选择器
 /// 选择扩展协议，更新peer的endpoint
+
 
 pub struct ExtTransportSelector {
     peer: Arc<Peer>,
     transports: Vec<PeerExtraTransport>,
 }
+
 /// 对目标节点选择扩展协议
 impl ExtTransportSelector {
     pub fn new(peer: Arc<Peer>, inbound_tx: mpsc::Sender<InboundResult>,
@@ -28,7 +33,7 @@ impl ExtTransportSelector {
 
         tokio::spawn(async move {
             // 启动循环检测peer 的 endpoint
-            let mut interval = time::interval(Duration::from_secs(5));
+            let mut interval = time::interval(Duration::from_secs(SELECTOR_INTERVAL));
             loop {
                 let inbound_tx_c = inbound_tx_c.clone();
                 peer_c.await_online().await;
@@ -45,7 +50,7 @@ impl ExtTransportSelector {
                                     peer_c.update_endpoint(e);
                                 }
                                 "NatTcp" => {
-                                    match NatTcpTransportClient::new(peer_c.clone(), inbound_tx_c, e.endpoint.clone()).await {
+                                    match NatTcpTransportClient::spawn(peer_c.clone(), inbound_tx_c, e.endpoint.clone()).await {
                                         Ok(c) => {
                                             let e = c.endpoint();
                                             info!("start endpoint success {e}");
